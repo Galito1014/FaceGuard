@@ -1,0 +1,12 @@
+Equipo: x86_64 · OpenCV 5.0.0 · umbral 0.42
+Variante                             Similitud  Resultado
+Espejo horizontal                        0.946  COINCIDE
+Más oscura (-40 %)                       0.923  COINCIDE
+Más clara (+20 %, +30)                   0.834  COINCIDE
+Media resolución (256 px)                0.925  COINCIDE
+Rotada 10°                               0.958  COINCIDE
+Desenfoque gaussiano 7×7                 0.856  COINCIDE
+Ruido gaussiano σ=15                     0.876  COINCIDE
+Otra persona (imagen de prueba 1)       -0.048  no coincide
+Otra persona (imagen de prueba 2)        0.134  no coincide
+Tiempo medio detección+reconocimiento (640×480, 1 rostro): 33.2 ms (equipo de desarrollo x86_64; en Raspberry Pi 4 se espera ~100-150 ms)

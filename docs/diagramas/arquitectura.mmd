@@ -1,0 +1,38 @@
+flowchart LR
+  subgraph Entrada["Entrada del edificio"]
+    P(["Persona que ingresa"]) --> CAM["Cámara USB<br/>640×480 · MJPG"]
+  end
+
+  subgraph PI["Raspberry Pi 4 · Raspberry Pi OS 64-bit · servicio systemd"]
+    direction TB
+    CAP["Hilo de captura<br/>último fotograma · reconexión automática"]
+    PROC["Hilo de procesamiento · 4 análisis/s<br/>YuNet: detección → SFace: plantilla 128-D"]
+    GAL[("Galería en memoria<br/>plantillas descifradas<br/>solo registros activos")]
+    DEC{"similitud ≥ umbral<br/>en N ciclos seguidos?"}
+    DEDUP["Anti-duplicados<br/>60 s por persona"]
+    DB[("SQLite + migraciones<br/>eventos · lista · usuarios · auditoría")]
+    FILES[("Fotos y capturas<br/>cifradas (Fernet)")]
+    API["FastAPI<br/>REST + WebSocket + MJPEG"]
+    GPIO["gpiozero"]
+    RET["Retención automática<br/>cada hora"]
+    CAP --> PROC
+    GAL --> PROC
+    PROC --> DEC
+    DEC -- "sí" --> DEDUP
+    DEC -- "no" --> LOG["Evento 'detección'<br/>sin imagen"]
+    DEDUP --> ALERT["Alerta 'pendiente de revisión'"]
+    ALERT --> DB
+    ALERT --> FILES
+    LOG --> DB
+    ALERT --> GPIO
+    DB <--> API
+    FILES --> API
+    RET --> DB
+    RET --> FILES
+  end
+
+  CAM -- "USB 2.0/3.0" --> CAP
+  GPIO -- "GPIO17" --> LED["LED rojo"]
+  GPIO -- "GPIO27" --> BUZ["Buzzer"]
+  API -- "HTTP / WebSocket<br/>red local (Wi-Fi o Ethernet)" --> WEB["Panel web React<br/>portería / administración"]
+  WEB -- "revisión humana:<br/>confirmar · falso positivo · cerrar" --> API

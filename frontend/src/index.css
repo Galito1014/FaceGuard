@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root { color-scheme: dark; }
+  html, body, #root { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 85% -10%, rgba(31, 139, 255, 0.07), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(31, 139, 255, 0.05), transparent 60%),
+      #05070a;
+  }
+  ::selection { background: rgba(31, 139, 255, 0.35); }
+  * { scrollbar-width: thin; scrollbar-color: #2e3b4b transparent; }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+  input[type="range"] { accent-color: #1f8bff; }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-ink-700/80 bg-ink-850/80 backdrop-blur-sm;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  }
+  .grid-bg {
+    background-image: linear-gradient(rgba(124, 196, 255, 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(124, 196, 255, 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .row-hover { @apply cursor-pointer transition-colors hover:bg-volt-500/[0.04]; }
+}

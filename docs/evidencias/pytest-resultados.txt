@@ -1,0 +1,19 @@
+platform linux -- Python 3.13.17, pytest-9.1.1, pluggy-1.7.0 -- /usr/local/bin/python3
+plugins: platformdirs-4.12.4, anyio-4.15.1
+tests/test_auth_rbac.py::test_login_incorrecto_y_bloqueo PASSED          [  6%]
+tests/test_auth_rbac.py::test_rutas_privadas_sin_sesion PASSED           [ 12%]
+tests/test_auth_rbac.py::test_contrasena_debil_rechazada PASSED          [ 18%]
+tests/test_auth_rbac.py::test_cambio_obligatorio_de_contrasena PASSED    [ 25%]
+tests/test_auth_rbac.py::test_permisos_por_rol PASSED                    [ 31%]
+tests/test_auth_rbac.py::test_no_eliminar_ultimo_superadmin PASSED       [ 37%]
+tests/test_auth_rbac.py::test_auditoria_registra_acciones PASSED         [ 43%]
+tests/test_blacklist_alerts.py::test_rechaza_archivo_que_no_es_imagen PASSED [ 50%]
+tests/test_blacklist_alerts.py::test_rechaza_foto_sin_rostro PASSED      [ 56%]
+tests/test_blacklist_alerts.py::test_registro_cifrado_y_reconocimiento PASSED [ 62%]
+tests/test_blacklist_alerts.py::test_alerta_simulada_revision_y_deduplicacion PASSED [ 68%]
+tests/test_blacklist_alerts.py::test_exportacion_csv_pdf PASSED          [ 75%]
+tests/test_blacklist_alerts.py::test_modo_demo_cargar_y_limpiar PASSED   [ 81%]
+tests/test_blacklist_alerts.py::test_actividad_y_resumen PASSED          [ 87%]
+tests/test_settings_retention.py::test_configuracion_valida_e_invalida PASSED [ 93%]
+tests/test_settings_retention.py::test_retencion_borra_eventos_y_vence_registros PASSED [100%]
+============================== 16 passed in 2.38s ==============================

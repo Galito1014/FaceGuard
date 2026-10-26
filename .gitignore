@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+# Datos de ejecución (base de datos, clave de cifrado, fotos): NUNCA subir
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+fernet.key
+initial_admin.txt
+# Modelos (se descargan con scripts/download_models.sh)
+backend/models/*.onnx
+# Frontend
+frontend/node_modules/
+frontend/*.tsbuildinfo
+# Sistema
+.DS_Store
+*.log
+.env

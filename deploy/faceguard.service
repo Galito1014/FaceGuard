@@ -1,0 +1,34 @@
+# FaceGuard AI — servicio systemd (inicio automático al encender la Raspberry Pi)
+# Instalación: sudo ./deploy/install.sh  (copia este archivo a /etc/systemd/system/)
+[Unit]
+Description=FaceGuard AI - Reconocimiento facial y lista de alerta
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=faceguard
+Group=faceguard
+SupplementaryGroups=video gpio
+WorkingDirectory=/opt/faceguard-ai/backend
+EnvironmentFile=-/etc/faceguard/faceguard.env
+ExecStart=/opt/faceguard-ai/venv/bin/uvicorn app.main:app --host ${FACEGUARD_HOST} --port ${FACEGUARD_PORT} --workers 1 --no-access-log
+Restart=always
+RestartSec=5
+# Límites para proteger la Raspberry Pi
+MemoryMax=2G
+CPUQuota=320%
+Nice=5
+# Endurecimiento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/faceguard
+DeviceAllow=char-video4linux rw
+DeviceAllow=/dev/gpiochip0 rw
+DeviceAllow=/dev/gpiochip4 rw
+DevicePolicy=closed
+
+[Install]
+WantedBy=multi-user.target

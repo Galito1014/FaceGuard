@@ -1,0 +1,10 @@
+# FaceGuard AI — dependencias del backend (Python 3.11+, Raspberry Pi OS 64-bit)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9
+opencv-python-headless>=4.8   # incluye FaceDetectorYN y FaceRecognizerSF
+numpy>=1.26
+cryptography>=42
+psutil>=5.9
+reportlab>=4.0
+gpiozero>=2.0 ; platform_machine == "aarch64"   # lgpio se instala con apt (python3-lgpio)
