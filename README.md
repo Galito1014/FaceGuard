@@ -187,7 +187,7 @@ Diagrama de conexión de los pines y ubicación de la cámara: **[docs/hardware.
 Requisitos: Python 3.11+ y Git (Node.js 18+ solo si va a modificar el frontend).
 
 ```bash
-git clone <URL-de-este-repositorio> faceguard-ai
+git clone https://github.com/Galito1014/FaceGuard.git faceguard-ai
 cd faceguard-ai
 
 # 1. Backend
