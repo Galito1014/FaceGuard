@@ -17,10 +17,74 @@ from typing import Any
 import cv2
 import numpy as np
 
+from app.core import compat
+
 log = logging.getLogger("faceguard.camera")
+
+# En Windows no existe /dev/video*: las cámaras se detectan probando índices
+# con OpenCV. Como abrir una cámara tarda, el resultado se guarda unos segundos.
+_PROBE_MAX_INDEX = int(os.getenv("FACEGUARD_CAMERA_PROBE_MAX", "5"))
+_PROBE_TTL_S = 60.0
+_probe_cache: tuple[float, list[dict[str, Any]]] = (0.0, [])
+_probe_lock = threading.Lock()
 
 
 def list_cameras() -> list[dict[str, Any]]:
+    """Cámaras de video disponibles: [{index, path, name}]."""
+    if compat.IS_LINUX:
+        return _list_v4l2()
+    return _list_by_probing()
+
+
+def _quiet_opencv() -> int | None:
+    """Silencia temporalmente los avisos de OpenCV al probar índices inexistentes."""
+    try:
+        prev = cv2.utils.logging.getLogLevel()
+        cv2.utils.logging.setLogLevel(cv2.utils.logging.LOG_LEVEL_ERROR)
+        return prev
+    except Exception:
+        return None
+
+
+def _restore_opencv(prev: int | None) -> None:
+    if prev is not None:
+        try:
+            cv2.utils.logging.setLogLevel(prev)
+        except Exception:
+            pass
+
+
+def _list_by_probing() -> list[dict[str, Any]]:
+    global _probe_cache
+    with _probe_lock:
+        ts, cached = _probe_cache
+        if time.time() - ts < _PROBE_TTL_S:
+            return [dict(d) for d in cached]
+        backend_name, api = compat.camera_backends(cv2)[0]
+        devices = []
+        prev = _quiet_opencv()
+        try:
+            for idx in range(_PROBE_MAX_INDEX + 1):
+                # La cámara que FaceGuard ya está usando no se vuelve a abrir
+                # (en Windows una webcam solo admite un proceso/conexión a la vez).
+                if camera.running and camera.connected and not camera.synthetic and idx == camera.index:
+                    devices.append({"index": idx, "path": compat.camera_label(idx),
+                                    "name": f"Cámara USB / webcam (en uso, {camera.backend or backend_name})"})
+                    continue
+                cap = cv2.VideoCapture(idx, api)
+                try:
+                    if cap.isOpened():
+                        devices.append({"index": idx, "path": compat.camera_label(idx),
+                                        "name": f"Cámara USB / webcam ({backend_name})"})
+                finally:
+                    cap.release()
+        finally:
+            _restore_opencv(prev)
+        _probe_cache = (time.time(), devices)
+        return [dict(d) for d in devices]
+
+
+def _list_v4l2() -> list[dict[str, Any]]:
     devices = []
     for path in sorted(glob.glob("/dev/video*")):
         try:
@@ -96,6 +160,7 @@ class CameraService:
         self.reconnects = 0
         self.on_status_change = None  # callback(connected: bool, message: str)
         self.demo_boxes: list[tuple[int, int, int, int]] = []
+        self.backend: str | None = None  # backend de OpenCV con el que se abrió (v4l2, dshow, msmf…)
 
     # ----------------------------------------------------------- control
     def start(self, index: int, width: int, height: int, synthetic: bool = False) -> None:
@@ -127,10 +192,18 @@ class CameraService:
         source = os.getenv("FACEGUARD_CAMERA_SOURCE")  # opcional: archivo de video o URL RTSP para pruebas
         if source:
             cap = cv2.VideoCapture(source)
+            self.backend = "archivo/url"
             return cap if cap.isOpened() else None
-        cap = cv2.VideoCapture(self.index, cv2.CAP_V4L2) if hasattr(cv2, "CAP_V4L2") else cv2.VideoCapture(self.index)
-        if not cap.isOpened():
+        # V4L2 en Raspberry Pi OS; DirectShow → Media Foundation en Windows.
+        cap = None
+        for name, api in compat.camera_backends(cv2):
+            cap = cv2.VideoCapture(self.index, api)
+            if cap.isOpened():
+                self.backend = name
+                break
             cap.release()
+            cap = None
+        if cap is None:
             return None
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))  # menos carga USB
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
@@ -153,7 +226,7 @@ class CameraService:
         while not self._stop.is_set():
             cap = self._open()
             if cap is None:
-                self._set_connected(False, f"No se pudo abrir la cámara /dev/video{self.index}")
+                self._set_connected(False, f"No se pudo abrir la cámara {compat.camera_label(self.index)}")
                 self._stop.wait(backoff)
                 backoff = min(backoff * 2, 10)
                 self.reconnects += 1
@@ -201,6 +274,8 @@ class CameraService:
             "connected": self.connected,
             "synthetic": self.synthetic,
             "index": self.index,
+            "device": compat.camera_label(self.index),
+            "backend": self.backend if self.connected else None,
             "resolution": f"{self.width}x{self.height}",
             "capture_fps": self.capture_fps if self.connected else 0,
             "error": self.error,

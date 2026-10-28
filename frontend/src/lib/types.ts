@@ -98,6 +98,8 @@ export interface CameraStatus {
   connected: boolean;
   synthetic: boolean;
   index: number;
+  device?: string;          // "/dev/video0" en Raspberry Pi, "Cámara 0" en Windows
+  backend?: string | null;  // backend de OpenCV usado: v4l2, dshow, msmf…
   resolution: string;
   capture_fps: number;
   error: string | null;

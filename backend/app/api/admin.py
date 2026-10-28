@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.api.common import norm_dt, paginate
 from app.config import config
+from app.core import compat
 from app.core.audit import audit
 from app.core.database import execute, query, query_one, utcnow
 from app.core.security import ROLE_LABELS, ROLES, client_ip, hash_password, require, validate_password_strength
@@ -140,7 +141,7 @@ def list_audit(q: str = "", date_from: str | None = None, date_to: str | None = 
 @router.get("/api/settings")
 def get_settings(user: dict = Depends(require("settings.view"))):
     return {"values": settings.all(), "cameras": list_cameras(), "gpio": gpio.status(),
-            "can_edit": user["role"] == "superadmin"}
+            "camera_prefix": compat.camera_prefix(), "can_edit": user["role"] == "superadmin"}
 
 
 @router.put("/api/settings")
