@@ -4,11 +4,20 @@ from app.main import app
 from tests.conftest import make_user
 
 
-def test_login_incorrecto_y_bloqueo(client):
+def test_login_incorrecto_intentos_ilimitados(client):
+    c = TestClient(app)
+    for _ in range(10):  # sin bloqueo ni espera por defecto
+        assert c.post("/api/auth/login", json={"username": "nadie", "password": "x"}).status_code == 401
+
+
+def test_bloqueo_opcional(client, monkeypatch):
+    from app.core.security import throttle
+    monkeypatch.setattr(throttle, "MAX_ATTEMPTS", 5)
     c = TestClient(app)
     for _ in range(5):
-        assert c.post("/api/auth/login", json={"username": "nadie", "password": "x"}).status_code == 401
-    assert c.post("/api/auth/login", json={"username": "nadie", "password": "x"}).status_code == 429
+        assert c.post("/api/auth/login", json={"username": "otro", "password": "x"}).status_code == 401
+    assert c.post("/api/auth/login", json={"username": "otro", "password": "x"}).status_code == 429
+    throttle.reset("otro", "testclient")
 
 
 def test_rutas_privadas_sin_sesion(client):

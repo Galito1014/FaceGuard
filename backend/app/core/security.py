@@ -48,10 +48,15 @@ def validate_password_strength(password: str) -> str | None:
 
 # ------------------------------------------------- límite de intentos de login
 class LoginThrottle:
-    """Bloquea 5 minutos tras 5 intentos fallidos por usuario+IP."""
+    """Límite opcional de intentos fallidos por usuario+IP.
 
-    MAX_ATTEMPTS = 5
-    WINDOW = 300
+    Por defecto los intentos son ilimitados y no hay espera
+    (FACEGUARD_LOGIN_MAX_ATTEMPTS=0). Con un valor N > 0 se bloquea durante
+    FACEGUARD_LOGIN_LOCK_SECONDS (300 s) tras N intentos fallidos.
+    """
+
+    MAX_ATTEMPTS = config.login_max_attempts
+    WINDOW = config.login_lock_seconds
 
     def __init__(self) -> None:
         self._fails: dict[str, list[float]] = {}
@@ -61,6 +66,8 @@ class LoginThrottle:
         return f"{username.lower()}|{ip}"
 
     def is_blocked(self, username: str, ip: str) -> bool:
+        if self.MAX_ATTEMPTS <= 0:  # intentos ilimitados
+            return False
         now = time.time()
         with self._lock:
             hits = [t for t in self._fails.get(self._key(username, ip), []) if now - t < self.WINDOW]
@@ -68,6 +75,8 @@ class LoginThrottle:
             return len(hits) >= self.MAX_ATTEMPTS
 
     def fail(self, username: str, ip: str) -> None:
+        if self.MAX_ATTEMPTS <= 0:
+            return
         with self._lock:
             self._fails.setdefault(self._key(username, ip), []).append(time.time())
 
