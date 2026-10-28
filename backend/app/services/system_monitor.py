@@ -9,6 +9,9 @@ from typing import Any
 
 import psutil
 
+from app.config import config
+from app.core import compat
+
 _BOOT = psutil.boot_time()
 psutil.cpu_percent(None)  # primera lectura de referencia
 
@@ -44,6 +47,8 @@ def is_raspberry_pi() -> bool:
 
 def throttled_flags() -> str | None:
     """`vcgencmd get_throttled` indica subtensión o reducción por temperatura."""
+    if not compat.IS_LINUX:  # herramienta exclusiva de Raspberry Pi
+        return None
     try:
         out = subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=2)
         return out.stdout.strip().split("=")[-1] if out.returncode == 0 else None
@@ -51,9 +56,24 @@ def throttled_flags() -> str | None:
         return None
 
 
+def _disk_root() -> str:
+    """Unidad donde están los datos: "/" en la Pi, p. ej. "C:\\" en Windows."""
+    try:
+        return Path(config.data_dir).resolve().anchor or "/"
+    except OSError:
+        return "/"
+
+
+def _load_avg() -> list[float]:
+    try:
+        return [round(x, 2) for x in psutil.getloadavg()]  # en Windows psutil lo emula
+    except (AttributeError, OSError):
+        return [0.0, 0.0, 0.0]
+
+
 def snapshot() -> dict[str, Any]:
     mem = psutil.virtual_memory()
-    disk = psutil.disk_usage("/")
+    disk = psutil.disk_usage(_disk_root())
     temp = read_temperature()
     return {
         "cpu_percent": psutil.cpu_percent(None),
@@ -66,7 +86,7 @@ def snapshot() -> dict[str, Any]:
         "temperature_c": temp,
         "temperature_status": None if temp is None else ("critica" if temp >= 80 else "alta" if temp >= 70 else "normal"),
         "uptime_s": int(time.time() - _BOOT),
-        "load_avg": [round(x, 2) for x in psutil.getloadavg()],
+        "load_avg": _load_avg(),
     }
 
 
@@ -75,6 +95,7 @@ def info() -> dict[str, Any]:
         "model": device_model(),
         "is_raspberry_pi": is_raspberry_pi(),
         "os": platform.platform(),
+        "os_family": compat.os_name(),
         "python": platform.python_version(),
         "arch": platform.machine(),
         "hostname": platform.node(),

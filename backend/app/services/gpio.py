@@ -11,6 +11,8 @@ import threading
 import time
 from typing import Any
 
+from app.core import compat
+
 log = logging.getLogger("faceguard.gpio")
 
 LEVELS = {"bajo": 1, "medio": 2, "alto": 3}
@@ -29,6 +31,12 @@ class GPIOService:
     def setup(self, led_pin: int, buzzer_pin: int) -> None:
         with self._lock:
             self.close()
+            if not compat.gpio_supported():
+                # Windows: no hay pines GPIO; el LED y el buzzer se simulan.
+                self.available = False
+                self.error = f"GPIO no disponible en {compat.os_name()}; modo simulado"
+                log.info(self.error)
+                return
             try:
                 from gpiozero import LED, Buzzer  # type: ignore
 

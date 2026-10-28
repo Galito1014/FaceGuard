@@ -1,4 +1,8 @@
-# FaceGuard AI — dependencias del backend (Python 3.11+, Raspberry Pi OS 64-bit)
+# FaceGuard AI — dependencias del backend
+# Un solo archivo para Raspberry Pi OS 64-bit (aarch64) y Windows 10/11 (x64), Python 3.11–3.13.
+# Las diferencias por plataforma se resuelven con marcadores de entorno (PEP 508):
+#   * gpiozero solo se instala en la Raspberry Pi (aarch64); en Windows el LED/buzzer se simulan.
+#   * uvicorn[standard] omite uvloop en Windows automáticamente.
 fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9

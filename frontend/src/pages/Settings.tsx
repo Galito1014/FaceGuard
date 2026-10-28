@@ -12,7 +12,7 @@ import { fmtDateTime, fmtUptime } from "@/lib/format";
 import type { EngineStatus, GpioStatus, Settings, SystemSnapshot } from "@/lib/types";
 import { Badge, Button, Card, ConfirmDialog, ErrorNote, Field, Input, PageHeader, Select, Spinner, Toggle } from "@/components/ui";
 
-interface SettingsResp { values: Settings; cameras: { index: number; path: string; name: string }[]; gpio: GpioStatus; can_edit: boolean }
+interface SettingsResp { values: Settings; cameras: { index: number; path: string; name: string }[]; gpio: GpioStatus; camera_prefix?: string; can_edit: boolean }
 interface SysInfo {
   device: { model: string; is_raspberry_pi: boolean; os: string; python: string; arch: string; hostname: string; throttled: string | null };
   status: SystemSnapshot; engine: EngineStatus; app_version: string; db_size_kb: number; data_dir: string;
@@ -121,7 +121,7 @@ export default function SettingsPage() {
                 <Field label="Dispositivo">
                   <Select value={draft.camera_index} disabled={!editable} onChange={(e) => set("camera_index", Number(e.target.value))}>
                     {[...new Set([draft.camera_index, ...q.data.cameras.map((c) => c.index)])].map((i) => (
-                      <option key={i} value={i}>/dev/video{i} {q.data.cameras.find((c) => c.index === i)?.name ?? "(no detectado)"}</option>
+                      <option key={i} value={i}>{q.data.camera_prefix ?? "/dev/video"}{i} {q.data.cameras.find((c) => c.index === i)?.name ?? "(no detectado)"}</option>
                     ))}
                   </Select>
                 </Field>

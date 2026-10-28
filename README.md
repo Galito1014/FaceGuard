@@ -1,6 +1,6 @@
 # FaceGuard AI
 
-**Sistema IoT de alerta temprana por reconocimiento facial para el ingreso de edificios y condominios, que funciona 100 % en una Raspberry Pi 4.**
+**Sistema IoT de alerta temprana por reconocimiento facial para el ingreso de edificios y condominios, que funciona 100 % en una Raspberry Pi 4 y también en una PC con Windows 10/11.**
 
 Una cámara USB vigila la entrada. La Raspberry Pi detecta los rostros y los compara, sin Internet, con una lista de personas que tienen una restricción de ingreso documentada. Si encuentra una posible coincidencia, avisa al guardia de portería con una notificación en el panel web, un LED rojo y un buzzer. **El sistema solo avisa: una persona revisa cada alerta y decide qué hacer.**
 
@@ -8,8 +8,8 @@ Una cámara USB vigila la entrada. La Raspberry Pi detecta los rostros y los com
 
 | | |
 |---|---|
-| **Plataforma** | Raspberry Pi 4 Model B · Raspberry Pi OS 64-bit |
-| **Sensor** | Cámara web USB |
+| **Plataforma** | Raspberry Pi 4 Model B · Raspberry Pi OS 64-bit — también Windows 10/11 (64 bits), con la misma base de código |
+| **Sensor** | Cámara web USB o webcam integrada |
 | **Actuadores** | LED rojo (GPIO17) y buzzer (GPIO27) |
 | **Comunicación** | Red local: API REST, WebSocket y video MJPEG por HTTP |
 | **Respuesta** | Alerta en tiempo real, alarma física, panel de revisión e historial |
@@ -25,7 +25,7 @@ Una cámara USB vigila la entrada. La Raspberry Pi detecta los rostros y los com
 3. [Arquitectura y flujo de datos](#3-arquitectura-y-flujo-de-datos)
 4. [Componentes](#4-componentes)
 5. [Costo estimado y viabilidad](#5-costo-estimado-y-viabilidad)
-6. [Instalación y puesta en marcha](#6-instalación-y-puesta-en-marcha)
+6. [Instalación y puesta en marcha](#6-instalación-y-puesta-en-marcha) — [Windows 10/11](#61-windows-10--windows-11) · [Raspberry Pi OS](#62-raspberry-pi-os)
 7. [Uso del sistema](#7-uso-del-sistema)
 8. [Pruebas](#8-pruebas)
 9. [Seguridad y privacidad](#9-seguridad-y-privacidad)
@@ -134,10 +134,10 @@ Diagrama de conexión de los pines y ubicación de la cámara: **[docs/hardware.
 | Visión | OpenCV 4.8+ (`FaceDetectorYN`, `FaceRecognizerSF`), modelos ONNX de OpenCV Zoo |
 | Backend | Python 3.11+, FastAPI, Uvicorn, WebSockets, SQLite (modo WAL) |
 | Seguridad | `cryptography` (Fernet), scrypt, sesiones con cookie httpOnly, control de acceso por roles |
-| Hardware | gpiozero + lgpio, psutil |
+| Hardware | gpiozero + lgpio (Raspberry Pi; simulado en Windows), psutil |
 | Reportes | ReportLab (PDF), CSV |
 | Frontend | React 18, TypeScript, Tailwind CSS, Recharts, Lucide Icons, TanStack Query |
-| Despliegue | systemd con endurecimiento, script de instalación |
+| Despliegue | Raspberry Pi: systemd con endurecimiento y `install.sh` · Windows: `setup.ps1` y `run.ps1` (PowerShell) |
 
 ## 5. Costo estimado y viabilidad
 
@@ -182,68 +182,383 @@ Diagrama de conexión de los pines y ubicación de la cámara: **[docs/hardware.
 
 ## 6. Instalación y puesta en marcha
 
-### Opción A — Probar en una computadora (sin Raspberry Pi)
+FaceGuard AI usa **un solo repositorio y una sola base de código** para Raspberry Pi OS y Windows. Al iniciar, detecta el sistema operativo (`backend/app/core/compat.py`) y elige automáticamente:
 
-Requisitos: Python 3.11+ y Git (Node.js 18+ solo si va a modificar el frontend).
+| Aspecto | Raspberry Pi OS (64-bit) | Windows 10/11 (64-bit) |
+|---|---|---|
+| Cámara (backend de OpenCV) | V4L2 (`/dev/videoN`) | DirectShow y, si falla, Media Foundation |
+| Lista de cámaras | `/dev/video*` y nombres de `/sys/class/video4linux` | Prueba de índices 0–5 con OpenCV (se guarda 60 s) |
+| Nombre en la interfaz | `/dev/video0` | `Cámara 0` |
+| LED y buzzer (GPIO) | Reales con gpiozero + lgpio | **Simulados**: se registran en el log y el panel muestra “GPIO simulado” |
+| Temperatura y `vcgencmd` | Disponibles | “No disponible” (normal en una PC) |
+| Uso de disco | Partición `/` | Unidad donde está la carpeta de datos (p. ej. `C:\`) |
+| Python | 3.11 (Bookworm) o 3.13 (Trixie) del sistema | 3.11, 3.12 (recomendado) o 3.13 de python.org, 64 bits |
+| Entorno virtual | `python3 -m venv --system-site-packages` (para usar `python3-lgpio` de apt) | `py -3.12 -m venv` |
+| Configuración | `backend/.env` (manual) o `/etc/faceguard/faceguard.env` (servicio) | `backend/.env` |
+| Inicio automático | Servicio systemd (`deploy/install.sh`) | Manual (`deploy\windows\run.ps1`) |
+| Permisos de la carpeta de datos | `700`/`600` (solo el usuario del servicio) | Permisos NTFS del perfil del usuario |
 
-```bash
-git clone https://github.com/Galito1014/FaceGuard.git faceguard-ai
-cd faceguard-ai
+Las dependencias están en **un único** `backend/requirements.txt`. Las diferencias se resuelven con marcadores de plataforma: `gpiozero` solo se instala en la Raspberry Pi (`aarch64`) y `uvicorn[standard]` omite `uvloop` en Windows. No hace falta un archivo distinto por sistema.
 
-# 1. Backend
-cd backend
-python3 -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-bash scripts/download_models.sh                         # o descargue los 2 .onnx manualmente a backend/models/
+> **El repositorio es privado.** Para clonarlo, la cuenta de GitHub debe tener acceso. En Windows, Git abre una ventana para iniciar sesión la primera vez. En la Raspberry Pi use un *token de acceso personal* como contraseña o ejecute `gh auth login` si tiene instalado GitHub CLI.
 
-# 2. Frontend: ya viene compilado en frontend/dist. Para recompilarlo:
-#    cd ../frontend && npm install && npm run build
+---
 
-# 3. Ejecutar
-cd ../backend
-FACEGUARD_ADMIN_PASSWORD=CambiarEsto123 uvicorn app.main:app --port 8000
+### 6.1 Windows 10 / Windows 11
+
+#### 1. Requisitos previos
+
+| Requisito | Detalle |
+|---|---|
+| Sistema | Windows 10 (22H2) o Windows 11, **64 bits** |
+| Python | **3.12 de 64 bits** (recomendado); también sirven 3.11 y 3.13. Descárguelo de [python.org](https://www.python.org/downloads/windows/) y marque **“Add python.exe to PATH”**. Python 3.14 o superior todavía no está probado |
+| Git | [Git for Windows](https://git-scm.com/download/win) |
+| Cámara | Webcam integrada o cámara USB (UVC) |
+| Node.js 18+ | **Solo** si va a modificar el frontend: `frontend/dist` ya viene compilado |
+| Navegador | Chrome, Edge o Firefox |
+
+Verifique en **PowerShell**:
+
+```powershell
+py --list          # debe aparecer -V:3.12 (o 3.11 / 3.13) con 64 bits
+git --version
 ```
 
-Abra **http://localhost:8000** e ingrese con el usuario `admin` y la contraseña que definió. El sistema le pedirá cambiarla.
+#### 2. Clonar el repositorio
 
-> **Sin cámara:** vaya a *Configuración → Demostración* y active **Video y detecciones simuladas**. Después pulse **Cargar registros y eventos ficticios**.
-> **Con un video de prueba:** `FACEGUARD_CAMERA_SOURCE=ruta/al/video.mp4 uvicorn app.main:app`
-> **Modo desarrollo del frontend:** `cd frontend && npm run dev` (http://localhost:5173, con proxy al backend en el puerto 8000).
+Use una carpeta **fuera de OneDrive** (OneDrive puede bloquear la base de datos SQLite):
 
-### Opción B — Raspberry Pi 4 (prototipo)
+```powershell
+cd C:\
+git clone https://github.com/Galito1014/FaceGuard.git faceguard-ai
+cd C:\faceguard-ai
+```
 
-1. Grabe **Raspberry Pi OS (64-bit) Lite o Desktop** con Raspberry Pi Imager. Active SSH y configure el Wi-Fi.
-2. Conecte la cámara USB, el LED y el buzzer según [docs/hardware.md](docs/hardware.md).
-3. El repositorio ya incluye el frontend compilado (`frontend/dist`), así que **no hace falta Node.js en la Pi**. Solo si modifica el frontend, recompílelo en su computadora con `cd frontend && npm ci && npm run build` y vuelva a copiarlo.
-4. Instale el servicio:
-   ```bash
-   sudo ./deploy/install.sh
+#### 3. Crear y activar el entorno virtual (PowerShell)
+
+**Opción rápida (automática).** El script crea el entorno, instala las dependencias, descarga y verifica los modelos y crea `backend\.env`. Así se completan los pasos 3, 4 y 6 de una vez:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\windows\setup.ps1
+```
+
+**Opción manual:**
+
+```powershell
+cd C:\faceguard-ai\backend
+py -3.12 -m venv .venv
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # solo la primera vez
+.\.venv\Scripts\Activate.ps1
+```
+
+Cuando el entorno está activo, la línea de PowerShell empieza con `(.venv)`. Si prefiere no cambiar la política, use `.\.venv\Scripts\python.exe` en lugar de `python` en todos los comandos.
+
+#### 4. Instalar las dependencias
+
+Con el entorno activado y desde `backend`:
+
+```powershell
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+python -m scripts.download_models
+```
+
+`scripts.download_models` es la versión para Windows de `download_models.sh`: descarga los dos modelos ONNX a `backend\models\` y verifica su SHA-256. En Windows **no** se instala `gpiozero`; es normal.
+
+#### 5. Configurar y seleccionar la webcam o cámara USB
+
+1. Conecte la cámara y cierre cualquier programa que la esté usando (Cámara de Windows, Teams, Zoom, OBS). **En Windows, solo un programa a la vez puede usar la cámara.**
+2. Permita el acceso: **Configuración → Privacidad y seguridad → Cámara** y active **“Acceso a la cámara”** y **“Permitir que las aplicaciones de escritorio accedan a la cámara”**. En Windows 10 está en **Configuración → Privacidad → Cámara**.
+3. Compruebe qué índice tiene cada cámara (con el entorno activado, desde `backend`):
+
+   ```powershell
+   python -c "import cv2; [print(i, cv2.VideoCapture(i, cv2.CAP_DSHOW).isOpened()) for i in range(4)]"
    ```
-   Este script crea el usuario de servicio `faceguard`, el entorno de Python y la carpeta de datos `/var/lib/faceguard` (permisos 700). También descarga y verifica los modelos y activa el servicio **systemd**, que arranca solo al encender la Pi y se reinicia si falla.
-5. Obtenga la contraseña inicial: `sudo cat /var/lib/faceguard/secret/initial_admin.txt` (borre el archivo después).
-6. Desde un equipo de la misma red, abra `http://<IP-de-la-Pi>:8000`.
 
-Comandos útiles:
+   En una laptop, normalmente **0 = webcam integrada** y **1 = cámara USB**.
+4. Elija la cámara en el panel, en **Configuración → Cámara → Dispositivo** (`Cámara 0`, `Cámara 1`…). También puede cambiar la resolución ahí o en **Monitoreo en vivo**. Los cambios se aplican sin reiniciar.
+5. Si la imagen sale negra o la cámara tarda en abrirse, pruebe con Media Foundation. Ponga `FACEGUARD_CAMERA_BACKEND=msmf` en `backend\.env` y reinicie.
+
+#### 6. Configurar las variables de entorno
+
+Las variables se leen de `backend\.env`. El script de instalación ya lo crea; si lo hizo de forma manual:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Ajuste como mínimo:
+
+```ini
+FACEGUARD_ADMIN_PASSWORD=UnaClaveSegura2026   # mín. 10 caracteres con letras y números (solo primer arranque)
+FACEGUARD_HOST=127.0.0.1                      # 0.0.0.0 para abrir el panel desde otros equipos de la red
+FACEGUARD_PORT=8000
+FACEGUARD_CAMERA_BACKEND=auto                 # auto | dshow | msmf
+```
+
+También puede definirlas solo para la sesión actual de PowerShell. Estas tienen prioridad sobre `.env`:
+
+```powershell
+$env:FACEGUARD_ADMIN_PASSWORD = "UnaClaveSegura2026"
+$env:FACEGUARD_DATA_DIR = "$env:LOCALAPPDATA\FaceGuard"   # opcional: datos fuera del repositorio
+```
+
+La lista completa está en [Variables de entorno](#variables-de-entorno).
+
+#### 7. Ejecutar FaceGuard AI
+
+Desde la raíz del repositorio:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\deploy\windows\run.ps1
+```
+
+O, con el entorno activado y desde `backend`:
+
+```powershell
+python -m scripts.run                       # usa FACEGUARD_HOST y FACEGUARD_PORT de .env
+python -m scripts.run --host 0.0.0.0 --port 8000
+# equivalente: uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Abra **http://localhost:8000** e ingrese con el usuario `admin` y la contraseña de `FACEGUARD_ADMIN_PASSWORD`. El sistema le pedirá cambiarla. Si no definió la contraseña, búsquela en `backend\data\secret\initial_admin.txt` y borre el archivo después. Para detener el sistema, pulse `Ctrl+C`.
+
+Si usa `0.0.0.0`, Windows preguntará si permite el acceso en el Firewall: elija **Redes privadas**. Desde otro equipo, abra `http://<IP-de-la-PC>:8000`. Puede ver la IP con `ipconfig`.
+
+#### 8. Verificar que todo funciona
+
+```powershell
+# a) Servidor
+Invoke-RestMethod http://localhost:8000/api/health       # → status: ok
+
+# b) OpenCV y la cámara (detenga FaceGuard antes, porque la cámara solo admite un programa)
+python -c "import cv2; c=cv2.VideoCapture(0, cv2.CAP_DSHOW); print('cámara abierta:', c.isOpened(), '| lee imagen:', c.read()[0]); c.release()"
+
+# c) Pruebas automáticas (23 pruebas)
+pip install -r requirements-dev.txt scikit-image
+pytest -v
+```
+
+En el panel web:
+
+| Comprobación | Resultado esperado en Windows |
+|---|---|
+| **Dashboard** | Motor facial activo, cámara conectada, insignia **“GPIO simulado”** (normal: una PC no tiene GPIO) |
+| **Monitoreo en vivo** | Video con recuadros; *Cámara* muestra `Conectada (Cámara 0 · dshow)` |
+| **Reconocimiento** | Registre en *Lista de alerta* una foto suya (con consentimiento), póngase frente a la cámara y verifique que aparece una alerta “Pendiente de revisión” |
+| **LED/buzzer** | *Configuración → Alertas y GPIO → Probar* responde “Modo simulado”, y el log (*Configuración → Sistema*) muestra `Alarma nivel alto … [simulado]` |
+| **Exportación** | *Historial → PDF / CSV* descarga los archivos |
+| **Sin cámara** | *Configuración → Demostración* → video y detecciones simuladas |
+
+Para medir la similitud y el tiempo por fotograma, ejecute `python -m scripts.benchmark_engine referencia.jpg prueba1.jpg`.
+
+#### 9. Errores comunes en Windows
+
+| Error | Solución |
+|---|---|
+| `la ejecución de scripts está deshabilitada en este sistema` | Ejecute `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` o use `powershell -ExecutionPolicy Bypass -File …` |
+| `python` abre Microsoft Store o “no se reconoce” | Instale Python de python.org y use `py -3.12`. Desactive los alias en **Configuración → Aplicaciones → Configuración avanzada de aplicaciones → Alias de ejecución de aplicaciones** |
+| `pip` intenta compilar `numpy` u `opencv` (“Microsoft Visual C++ 14.0 is required”) | Su Python es de 32 bits o una versión sin ruedas precompiladas (p. ej. 3.14). Instale **Python 3.12 de 64 bits** y vuelva a crear `.venv` |
+| `ImportError: DLL load failed` al importar `cv2` | Instale el [Microsoft Visual C++ Redistributable x64](https://aka.ms/vs/17/release/vc_redist.x64.exe) y verifique que no haya instalado a la vez `opencv-python` y `opencv-python-headless` (`pip uninstall opencv-python`) |
+| Panel: “No se pudo abrir la cámara Cámara 0” | Cierre otros programas que usen la cámara, revise los permisos de privacidad (paso 5), pruebe otro índice o use `FACEGUARD_CAMERA_BACKEND=msmf` |
+| Imagen negra o la cámara tarda mucho en abrirse | Use `FACEGUARD_CAMERA_BACKEND=msmf` (o `dshow` si estaba en `msmf`) y baje la resolución a 640×480 |
+| Windows 10/11 **N** o **KN**: Media Foundation no funciona | Instale el *Media Feature Pack* o use `FACEGUARD_CAMERA_BACKEND=dshow` |
+| `[Errno 10048]` o el puerto 8000 está ocupado | Use `python -m scripts.run --port 8080` o busque el proceso con `netstat -ano \| findstr :8000` |
+| No se puede abrir el panel desde otro equipo | Use `FACEGUARD_HOST=0.0.0.0`, permita el acceso en el Firewall (red privada) o, como administrador: `New-NetFirewallRule -DisplayName "FaceGuard AI" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Private` |
+| `database is locked` | Saque el proyecto de OneDrive o ponga los datos en otra carpeta con `FACEGUARD_DATA_DIR=%LOCALAPPDATA%\FaceGuard` |
+| Olvidó la contraseña de `admin` | Desde `backend`, con el entorno activo: `python -m scripts.manage reset-password admin` |
+| “Modelos no encontrados” | Ejecute `python -m scripts.download_models` desde `backend` |
+
+---
+
+### 6.2 Raspberry Pi OS
+
+#### 1. Requisitos de hardware y software
+
+| Requisito | Detalle |
+|---|---|
+| Placa | Raspberry Pi 4 Model B (2 GB o más; ver la sección 5) |
+| Sistema | **Raspberry Pi OS 64-bit** (Lite o Desktop): Bookworm (Python 3.11) o Trixie (Python 3.13). El sistema de 32 bits **no** es compatible |
+| Almacenamiento | microSD de 32 GB A1/A2 |
+| Alimentación | Fuente oficial USB-C de 5,1 V y 3 A |
+| Cámara | Webcam USB compatible con UVC |
+| Opcional | LED rojo + resistencia de 330 Ω en GPIO17 y buzzer activo en GPIO27 ([docs/hardware.md](docs/hardware.md)) |
+
+Compruebe la arquitectura (debe decir `aarch64`) y la versión de Python:
+
+```bash
+uname -m
+python3 --version
+```
+
+#### 2. Clonar el repositorio
+
+```bash
+sudo apt update
+sudo apt install -y git
+cd ~
+git clone https://github.com/Galito1014/FaceGuard.git faceguard-ai
+cd ~/faceguard-ai
+```
+
+#### 3. Crear y activar el entorno virtual
+
+Instale los paquetes del sistema (los mismos que usa `deploy/install.sh`, más `v4l-utils` para revisar la cámara):
+
+```bash
+sudo apt install -y python3-venv python3-dev python3-lgpio libgl1 curl v4l-utils
+cd ~/faceguard-ai/backend
+python3 -m venv --system-site-packages .venv
+source .venv/bin/activate
+```
+
+El entorno se crea con `--system-site-packages` para usar `python3-lgpio`, que controla los pines GPIO y se instala con `apt`.
+
+#### 4. Instalar las dependencias (ARM64)
+
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+python -m scripts.download_models        # o: bash scripts/download_models.sh
+```
+
+En ARM64 hay ruedas precompiladas de `opencv-python-headless`, `numpy` y `cryptography`, así que no se compila nada. `gpiozero` se instala solo en `aarch64`, y `lgpio` viene del paquete de apt.
+
+#### 5. Configurar y verificar la cámara USB
+
+```bash
+ls /dev/video*                              # p. ej. /dev/video0 /dev/video1
+v4l2-ctl --list-devices                     # nombre de la cámara y sus nodos
+v4l2-ctl -d /dev/video0 --list-formats-ext  # resoluciones y formato MJPG
+groups                                      # su usuario debe pertenecer a "video" y "gpio"
+```
+
+Si falta algún grupo, ejecute `sudo usermod -aG video,gpio $USER` y vuelva a iniciar sesión.
+
+- Muchas webcams crean **dos nodos** (`/dev/video0` = imagen y `/dev/video1` = metadatos). Use el primero.
+- Los nodos `/dev/video10` a `/dev/video3x` son del códec interno de la Pi, **no** son cámaras.
+- Elija la cámara en **Configuración → Cámara → Dispositivo** (`/dev/video0`…).
+
+#### 6. Configurar las variables de entorno
+
+Para la ejecución manual se usa `backend/.env`:
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+```ini
+FACEGUARD_HOST=0.0.0.0                       # para abrir el panel desde otros equipos de la red
+FACEGUARD_PORT=8000
+FACEGUARD_ADMIN_PASSWORD=UnaClaveSegura2026  # solo se usa en el primer arranque
+FACEGUARD_CAMERA_BACKEND=auto                # en la Pi equivale a v4l2
+```
+
+Si instala FaceGuard como servicio (paso 7), la configuración está en `/etc/faceguard/faceguard.env`; el servicio no usa `backend/.env`.
+
+#### 7. Ejecutar FaceGuard AI desde la terminal
+
+Con el entorno activado y desde `~/faceguard-ai/backend`:
+
+```bash
+python -m scripts.run
+# equivalente: uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Desde un equipo de la misma red, abra `http://<IP-de-la-Pi>:8000`. Puede ver la IP con `hostname -I`. Para detener el sistema, pulse `Ctrl+C`.
+
+**Instalación como servicio (recomendado para uso 24/7).** Esta instalación no cambia respecto a la versión anterior:
+
+```bash
+cd ~/faceguard-ai
+sudo ./deploy/install.sh
+sudo cat /var/lib/faceguard/secret/initial_admin.txt    # contraseña inicial (borre el archivo después)
+```
+
+`install.sh` crea el usuario de servicio `faceguard`, el entorno en `/opt/faceguard-ai/venv` y la carpeta de datos `/var/lib/faceguard` (permisos 700). También descarga y verifica los modelos y activa el servicio **systemd**, que arranca solo al encender la Pi y se reinicia si falla. No ejecute la versión manual y el servicio al mismo tiempo, porque ambos usan la cámara y el puerto 8000.
 
 ```bash
 sudo systemctl status faceguard          # estado
 sudo journalctl -u faceguard -f          # registros en vivo
 sudo nano /etc/faceguard/faceguard.env   # configuración del servicio
+sudo systemctl restart faceguard         # aplicar cambios
 cd /opt/faceguard-ai/backend && sudo -u faceguard FACEGUARD_DATA_DIR=/var/lib/faceguard \
   ../venv/bin/python -m scripts.manage create-user guardia1 "Guardia Turno Noche" operator
 ```
 
+#### 8. Comprobar que todas las funcionalidades funcionan
+
+```bash
+curl -s http://localhost:8000/api/health                    # {"status":"ok",...}
+python -c "import cv2; c=cv2.VideoCapture(0, cv2.CAP_V4L2); print('cámara:', c.isOpened(), c.read()[0]); c.release()"   # con FaceGuard detenido
+python -c "from gpiozero import LED; import time; l=LED(17); l.on(); time.sleep(1); l.off()"   # el LED enciende 1 s
+vcgencmd measure_temp && vcgencmd get_throttled              # temperatura; throttled=0x0 = sin problemas
+pip install -r requirements-dev.txt scikit-image && pytest -v   # 23 pruebas
+```
+
+| Comprobación | Resultado esperado en la Raspberry Pi |
+|---|---|
+| **Dashboard** | CPU, RAM, **temperatura**, motor activo, cámara conectada e insignia **“GPIO listo”** |
+| **Monitoreo en vivo** | `Conectada (/dev/video0 · v4l2)`, ~15 fps de captura y ~4 de procesamiento |
+| **LED/buzzer** | *Configuración → Alertas y GPIO → Probar*: el LED parpadea y suena el buzzer (“Hardware detectado”) |
+| **Reconocimiento** | Persona registrada → alerta, LED, buzzer y notificación; persona no registrada → recuadro verde sin imagen guardada |
+| **Cámara desconectada** | El panel muestra “Sin señal” y la conexión se recupera sola al reconectarla |
+| **Pruebas físicas** | Tabla F1–F7 de [docs/pruebas.md](docs/pruebas.md) |
+
+#### 9. Problemas comunes de compatibilidad y rendimiento
+
+| Problema | Solución |
+|---|---|
+| `error: externally-managed-environment` | Está usando `pip` fuera del entorno virtual. Ejecute `source .venv/bin/activate` |
+| `pip` compila `numpy` u `opencv` durante mucho tiempo | El sistema es de 32 bits (`uname -m` = `armv7l`) o `pip` es antiguo. Use Raspberry Pi OS **64-bit** y `pip install --upgrade pip` |
+| Falla la descarga desde piwheels | `pip install --index-url https://pypi.org/simple -r requirements.txt` |
+| `ImportError: libGL.so.1` | `sudo apt install -y libgl1` |
+| “GPIO simulado” en la Pi | Falta `python3-lgpio` (`sudo apt install python3-lgpio`), el entorno no se creó con `--system-site-packages` o el usuario no está en el grupo `gpio` |
+| “No se pudo abrir la cámara /dev/video0” | Revise `ls /dev/video*`, el grupo `video`, que el servicio no esté usando la cámara (`sudo systemctl stop faceguard`) y pruebe `/dev/video1` o `/dev/video2` |
+| La cámara se desconecta sola | Fuente insuficiente: use la fuente oficial de 3 A, o un hub USB con alimentación. Si `vcgencmd get_throttled` no da `0x0`, hay subtensión |
+| FPS bajos o CPU al 100 % | Baje la resolución a 640×480 o 320×240. En *Configuración → Reconocimiento*, suba **Frecuencia de procesamiento** (p. ej. 400 ms) y baje **Ancho de imagen analizada** (p. ej. 320). Use Raspberry Pi OS Lite |
+| Temperatura alta (≥ 70 °C) | Case con disipador y ventilador, buena ventilación y menos carga (ver la fila anterior) |
+| No se reconocen rostros lejanos | Acerque la cámara o baje **Tamaño mínimo de rostro** (ver la prueba B en la sección 8) |
+| Puerto 8000 ocupado | El servicio ya está activo: `sudo systemctl stop faceguard` o use `python -m scripts.run --port 8080` |
+
+---
+
+### Otra computadora Linux o macOS (desarrollo)
+
+```bash
+git clone https://github.com/Galito1014/FaceGuard.git faceguard-ai
+cd faceguard-ai/backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m scripts.download_models
+cp .env.example .env            # ajuste FACEGUARD_ADMIN_PASSWORD
+python -m scripts.run
+```
+
+> **Sin cámara:** vaya a *Configuración → Demostración* y active **Video y detecciones simuladas**. Después pulse **Cargar registros y eventos ficticios**.
+> **Con un video de prueba:** `FACEGUARD_CAMERA_SOURCE=ruta/al/video.mp4` (en PowerShell: `$env:FACEGUARD_CAMERA_SOURCE="C:\videos\prueba.mp4"`).
+> **Frontend:** ya viene compilado en `frontend/dist`. Para modificarlo, use `cd frontend && npm ci && npm run build`, o `npm run dev` (http://localhost:5173, con proxy al backend en el puerto 8000).
+
 ### Variables de entorno
+
+Se leen del entorno y de `backend/.env` (las del entorno tienen prioridad). El servicio systemd de la Pi usa `/etc/faceguard/faceguard.env`. Las rutas admiten `~` y variables como `%LOCALAPPDATA%` o `$HOME`.
 
 | Variable | Por defecto | Descripción |
 |---|---|---|
 | `FACEGUARD_DATA_DIR` | `backend/data` | Base de datos, clave de cifrado, fotos y registros |
 | `FACEGUARD_MODELS_DIR` | `backend/models` | Modelos ONNX |
+| `FACEGUARD_FRONTEND_DIST` | `frontend/dist` | Frontend compilado |
 | `FACEGUARD_ADMIN_PASSWORD` | aleatoria | Contraseña temporal de `admin` en el primer arranque |
+| `FACEGUARD_HOST` / `FACEGUARD_PORT` | `127.0.0.1` / `8000` | Interfaz y puerto para `python -m scripts.run` (el servicio de la Pi usa `0.0.0.0`) |
 | `FACEGUARD_CAMERA_NAME` | `CAM-01 Entrada principal` | Nombre que aparece en eventos y reportes |
+| `FACEGUARD_CAMERA_BACKEND` | `auto` | `auto` (V4L2 en la Pi; DirectShow → Media Foundation en Windows), `v4l2`, `dshow`, `msmf` o `any` |
+| `FACEGUARD_CAMERA_PROBE_MAX` | `5` | Índice máximo que se prueba al buscar cámaras en Windows |
 | `FACEGUARD_CAMERA_SOURCE` | — | Video o URL RTSP en lugar de la cámara USB (para pruebas) |
 | `FACEGUARD_SECURE_COOKIES` | `0` | `1` si se sirve por HTTPS |
 | `FACEGUARD_SESSION_HOURS` | `8` | Duración de la sesión |
+| `FACEGUARD_ENV_FILE` | `backend/.env` | Otro archivo `.env` que se quiera cargar |
 
 La documentación interactiva de la API está en `http://<host>:8000/api/docs`.
 
@@ -283,7 +598,7 @@ La evidencia completa está en **[docs/pruebas.md](docs/pruebas.md)**. Resumen:
 | **B. Persona registrada** | 1 alerta, LED + buzzer, notificación | Similitud 0,95; **1 sola alerta** aunque la persona apareció varias veces; alarma activada | El primer intento falló porque el rostro era muy pequeño (40 px): se documentó la distancia de la cámara y el tamaño mínimo es configurable |
 | **C. Robustez** | La misma persona coincide; otras no | Variaciones (luz, giro, ruido, desenfoque): 0,83–0,96; otras personas: −0,05 y 0,13 | Umbral fijado en 0,42 |
 | **D. Cámara desconectada** | No se cae; reintenta | Reintentos progresivos; el panel muestra “Sin señal” | Evento de sistema con un límite de 1 cada 30 s |
-| **Automáticas** | — | **16/16 aprobadas** (`pytest`) | — |
+| **Automáticas** | — | **23/23 aprobadas** (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
 
 Para ejecutar las pruebas automáticas: `cd backend && pip install -r requirements-dev.txt scikit-image && pytest -v`
 
@@ -322,16 +637,18 @@ faceguard-ai/
 │   ├── app/
 │   │   ├── main.py              # FastAPI: arranque, WebSocket, cabeceras de seguridad, frontend estático
 │   │   ├── config.py            # configuración por variables de entorno
-│   │   ├── core/                # base de datos y migraciones, seguridad (auth/RBAC), cifrado, auditoría
+│   │   ├── core/                # BD y migraciones, seguridad (auth/RBAC), cifrado, auditoría, compat.py (detección de SO)
 │   │   ├── api/                 # rutas: auth, dashboard, cámara, lista, eventos/alertas, administración
 │   │   └── services/            # cámara, motor facial, pipeline, GPIO, tiempo real, retención, demo
 │   ├── migrations/              # esquema SQL versionado
-│   ├── scripts/                 # descarga de modelos, gestión de usuarios, benchmark del motor
-│   ├── tests/                   # 16 pruebas automáticas (pytest)
-│   └── requirements.txt
+│   ├── scripts/                 # run.py (inicio), descarga de modelos (.py/.sh), gestión de usuarios, benchmark
+│   ├── tests/                   # 23 pruebas automáticas (pytest)
+│   ├── .env.example             # configuración para ejecución manual (Windows / Pi)
+│   └── requirements.txt         # dependencias únicas para Windows y Raspberry Pi
 ├── frontend/                    # React + TypeScript + Tailwind (se compila a frontend/dist)
 │   └── src/{pages,components,lib}
-├── deploy/                      # servicio systemd, script de instalación, variables de entorno
+├── deploy/                      # Raspberry Pi: servicio systemd, install.sh, variables de entorno
+│   └── windows/                 # Windows: setup.ps1 (configuración automática) y run.ps1 (inicio)
 └── docs/
     ├── img/                     # capturas y diagrama de arquitectura
     ├── diagramas/               # fuente Mermaid del diagrama

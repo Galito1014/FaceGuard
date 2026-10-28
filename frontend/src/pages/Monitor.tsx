@@ -95,7 +95,7 @@ export default function MonitorPage() {
           <Card title="Cámara" icon={Cctv}>
             <div className="space-y-3">
               <StatusDot ok={!!camera?.connected} warn={!camera?.running}
-                label={camera?.connected ? (camera.synthetic ? "Fuente simulada" : `Conectada (/dev/video${camera.index})`) : camera?.running ? "Desconectada" : "Detenida"} />
+                label={camera?.connected ? (camera.synthetic ? "Fuente simulada" : `Conectada (${camera.device ?? `/dev/video${camera.index}`}${camera.backend ? ` · ${camera.backend}` : ""})`) : camera?.running ? "Desconectada" : "Detenida"} />
               {camera?.error && camera.running && <ErrorNote error={camera.error} />}
               <Field label="Resolución" hint="Menor resolución = menos carga de CPU en la Raspberry Pi.">
                 <Select value={camera?.resolution ?? ""} disabled={!can("camera.control") || resolution.isPending}
@@ -106,7 +106,7 @@ export default function MonitorPage() {
               <div className="text-xs text-ink-300">
                 <p className="mb-1 font-medium text-ink-200">Dispositivos detectados</p>
                 {cam.data?.devices.length ? cam.data.devices.map((d) => <p key={d.path} className="font-mono">{d.path} · {d.name}</p>)
-                  : <p className="text-ink-400">Ningún /dev/video* en este equipo.</p>}
+                  : <p className="text-ink-400">No se detectaron cámaras en este equipo.</p>}
               </div>
               <p className="text-[11px] text-ink-400">Reconexiones automáticas: {camera?.reconnects ?? 0}</p>
             </div>

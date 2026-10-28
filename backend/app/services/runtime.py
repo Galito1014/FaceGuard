@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from app.config import config
+from app.core import compat
 from app.services.camera import camera
 from app.services.events import create_event
 from app.services.face_engine import engine, gallery
@@ -35,7 +36,7 @@ def start_monitoring() -> None:
     cfg = settings.all()
     camera.start(cfg["camera_index"], cfg["camera_width"], cfg["camera_height"], synthetic=cfg["demo_mode"])
     pipeline.start()
-    log.info("Monitoreo iniciado (%s)", "demostración" if cfg["demo_mode"] else f"/dev/video{cfg['camera_index']}")
+    log.info("Monitoreo iniciado (%s)", "demostración" if cfg["demo_mode"] else compat.camera_label(cfg["camera_index"]))
 
 
 def stop_monitoring() -> None:

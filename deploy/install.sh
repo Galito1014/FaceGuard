@@ -16,7 +16,8 @@ usermod -aG video,gpio faceguard
 
 echo "==> Copiando aplicación a $DEST"
 mkdir -p "$DEST"
-rsync -a --delete --exclude node_modules --exclude 'backend/data' --exclude '.git' "$SRC/" "$DEST/"
+# backend/.env y backend/.venv son de la ejecución manual; el servicio usa /etc/faceguard/faceguard.env y $DEST/venv
+rsync -a --delete --exclude node_modules --exclude 'backend/data' --exclude 'backend/.env' --exclude 'backend/.venv' --exclude '.git' "$SRC/" "$DEST/"
 
 echo "==> Entorno de Python"
 python3 -m venv --system-site-packages "$DEST/venv"
