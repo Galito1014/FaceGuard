@@ -48,7 +48,8 @@ def ensure_initial_admin() -> None:
         return
     password = config.initial_admin_password or secrets.token_urlsafe(12)
     execute("INSERT INTO users (username, full_name, password_hash, role, active, must_change_password, created_at) "
-            "VALUES (?,?,?,?,1,1,?)", ("admin", "Superadministrador", hash_password(password), "superadmin", utcnow()))
+            "VALUES (?,?,?,?,1,?,?)", ("admin", "Superadministrador", hash_password(password), "superadmin",
+                                  1 if config.force_password_change else 0, utcnow()))
     path = config.secret_dir / "initial_admin.txt"
     path.write_text(f"usuario: admin\ncontraseña temporal: {password}\n"
                     "Se pedirá cambiarla en el primer inicio de sesión. Borre este archivo después.\n", encoding="utf-8")

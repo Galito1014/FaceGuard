@@ -17,7 +17,7 @@ Resultado completo: [`evidencias/pytest-resultados.txt`](evidencias/pytest-resul
 
 | # | Prueba | Qué verifica | Resultado |
 |---|--------|--------------|-----------|
-| 1 | `test_login_incorrecto_y_bloqueo` | Credenciales erróneas → 401; al 6.º intento → 429 (bloqueo 5 min) | ✅ |
+| 1 | `test_login_incorrecto_intentos_ilimitados` / `test_bloqueo_opcional` | Credenciales erróneas → 401 sin bloqueo (intentos ilimitados por defecto); con `FACEGUARD_LOGIN_MAX_ATTEMPTS=5`, al 6.º intento → 429 | ✅ |
 | 2 | `test_rutas_privadas_sin_sesion` | Dashboard, lista, eventos, usuarios y video exigen sesión | ✅ |
 | 3 | `test_contrasena_debil_rechazada` | Contraseñas de menos de 10 caracteres o sin letras+números se rechazan | ✅ |
 | 4 | `test_cambio_obligatorio_de_contrasena` | Un usuario nuevo no accede a nada hasta cambiar la contraseña temporal | ✅ |

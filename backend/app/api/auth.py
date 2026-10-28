@@ -38,7 +38,7 @@ def _me(user: dict) -> dict:
 def login(body: LoginIn, request: Request, response: Response):
     ip = client_ip(request)
     if throttle.is_blocked(body.username, ip):
-        raise HTTPException(429, "Demasiados intentos fallidos. Espere 5 minutos.")
+        raise HTTPException(429, f"Demasiados intentos fallidos. Espere {max(1, throttle.WINDOW // 60)} minuto(s).")
     user = query_one("SELECT * FROM users WHERE username = ?", (body.username,))
     if not user or not user["active"] or not verify_password(body.password, user["password_hash"]):
         throttle.fail(body.username, ip)

@@ -74,6 +74,11 @@ class Config:
     # Desactiva hilos de cámara/procesamiento (útil para pruebas automáticas).
     disable_workers: bool = field(default_factory=lambda: _env_bool("FACEGUARD_DISABLE_WORKERS", False))
     initial_admin_password: str | None = field(default_factory=lambda: os.getenv("FACEGUARD_ADMIN_PASSWORD"))
+    # Intentos de inicio de sesión: 0 = ilimitados, sin espera.
+    login_max_attempts: int = field(default_factory=lambda: int(os.getenv("FACEGUARD_LOGIN_MAX_ATTEMPTS", "0")))
+    login_lock_seconds: int = field(default_factory=lambda: int(os.getenv("FACEGUARD_LOGIN_LOCK_SECONDS", "300")))
+    # 0 = el admin inicial entra directo con FACEGUARD_ADMIN_PASSWORD, sin cambio obligatorio.
+    force_password_change: bool = field(default_factory=lambda: _env_bool("FACEGUARD_FORCE_PASSWORD_CHANGE", True))
     camera_name: str = field(default_factory=lambda: os.getenv("FACEGUARD_CAMERA_NAME", "CAM-01 Entrada principal"))
 
     @property

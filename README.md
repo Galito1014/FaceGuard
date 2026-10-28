@@ -291,7 +291,9 @@ notepad .env
 Ajuste como mínimo:
 
 ```ini
-FACEGUARD_ADMIN_PASSWORD=UnaClaveSegura2026   # mín. 10 caracteres con letras y números (solo primer arranque)
+FACEGUARD_ADMIN_PASSWORD=FaceGuard2026        # mín. 10 caracteres con letras y números (solo primer arranque)
+FACEGUARD_FORCE_PASSWORD_CHANGE=0             # 0 = entrar directo · 1 = pedir cambiarla al primer ingreso
+FACEGUARD_LOGIN_MAX_ATTEMPTS=0                # 0 = intentos ilimitados, sin espera
 FACEGUARD_HOST=127.0.0.1                      # 0.0.0.0 para abrir el panel desde otros equipos de la red
 FACEGUARD_PORT=8000
 FACEGUARD_CAMERA_BACKEND=auto                 # auto | dshow | msmf
@@ -322,7 +324,7 @@ python -m scripts.run --host 0.0.0.0 --port 8000
 # equivalente: uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Abra **http://localhost:8000** e ingrese con el usuario `admin` y la contraseña de `FACEGUARD_ADMIN_PASSWORD`. El sistema le pedirá cambiarla. Si no definió la contraseña, búsquela en `backend\data\secret\initial_admin.txt` y borre el archivo después. Para detener el sistema, pulse `Ctrl+C`.
+Abra **http://localhost:8000** e ingrese con el usuario **`admin`** y la contraseña **`FaceGuard2026`** (la de `FACEGUARD_ADMIN_PASSWORD`). Con `FACEGUARD_FORCE_PASSWORD_CHANGE=0` entra directo; con `1` se le pide cambiarla. Si no definió la contraseña, búsquela en `backend\data\secret\initial_admin.txt` y borre el archivo después. Para detener el sistema, pulse `Ctrl+C`.
 
 Si usa `0.0.0.0`, Windows preguntará si permite el acceso en el Firewall: elija **Redes privadas**. Desde otro equipo, abra `http://<IP-de-la-PC>:8000`. Puede ver la IP con `ipconfig`.
 
@@ -335,7 +337,7 @@ Invoke-RestMethod http://localhost:8000/api/health       # → status: ok
 # b) OpenCV y la cámara (detenga FaceGuard antes, porque la cámara solo admite un programa)
 python -c "import cv2; c=cv2.VideoCapture(0, cv2.CAP_DSHOW); print('cámara abierta:', c.isOpened(), '| lee imagen:', c.read()[0]); c.release()"
 
-# c) Pruebas automáticas (23 pruebas)
+# c) Pruebas automáticas (24 pruebas)
 pip install -r requirements-dev.txt scikit-image
 pytest -v
 ```
@@ -495,7 +497,7 @@ curl -s http://localhost:8000/api/health                    # {"status":"ok",...
 python -c "import cv2; c=cv2.VideoCapture(0, cv2.CAP_V4L2); print('cámara:', c.isOpened(), c.read()[0]); c.release()"   # con FaceGuard detenido
 python -c "from gpiozero import LED; import time; l=LED(17); l.on(); time.sleep(1); l.off()"   # el LED enciende 1 s
 vcgencmd measure_temp && vcgencmd get_throttled              # temperatura; throttled=0x0 = sin problemas
-pip install -r requirements-dev.txt scikit-image && pytest -v   # 23 pruebas
+pip install -r requirements-dev.txt scikit-image && pytest -v   # 24 pruebas
 ```
 
 | Comprobación | Resultado esperado en la Raspberry Pi |
@@ -550,7 +552,10 @@ Se leen del entorno y de `backend/.env` (las del entorno tienen prioridad). El s
 | `FACEGUARD_DATA_DIR` | `backend/data` | Base de datos, clave de cifrado, fotos y registros |
 | `FACEGUARD_MODELS_DIR` | `backend/models` | Modelos ONNX |
 | `FACEGUARD_FRONTEND_DIST` | `frontend/dist` | Frontend compilado |
-| `FACEGUARD_ADMIN_PASSWORD` | aleatoria | Contraseña temporal de `admin` en el primer arranque |
+| `FACEGUARD_ADMIN_PASSWORD` | aleatoria | Contraseña de `admin` en el primer arranque (`backend/.env.example`: `FaceGuard2026`) |
+| `FACEGUARD_FORCE_PASSWORD_CHANGE` | `1` | `0` = el `admin` inicial entra directo, sin cambio obligatorio (así viene en `backend/.env.example`) |
+| `FACEGUARD_LOGIN_MAX_ATTEMPTS` | `0` | Intentos fallidos antes de bloquear; `0` = ilimitados y sin espera |
+| `FACEGUARD_LOGIN_LOCK_SECONDS` | `300` | Duración del bloqueo cuando `FACEGUARD_LOGIN_MAX_ATTEMPTS` > 0 |
 | `FACEGUARD_HOST` / `FACEGUARD_PORT` | `127.0.0.1` / `8000` | Interfaz y puerto para `python -m scripts.run` (el servicio de la Pi usa `0.0.0.0`) |
 | `FACEGUARD_CAMERA_NAME` | `CAM-01 Entrada principal` | Nombre que aparece en eventos y reportes |
 | `FACEGUARD_CAMERA_BACKEND` | `auto` | `auto` (V4L2 en la Pi; DirectShow → Media Foundation en Windows), `v4l2`, `dshow`, `msmf` o `any` |
@@ -598,7 +603,7 @@ La evidencia completa está en **[docs/pruebas.md](docs/pruebas.md)**. Resumen:
 | **B. Persona registrada** | 1 alerta, LED + buzzer, notificación | Similitud 0,95; **1 sola alerta** aunque la persona apareció varias veces; alarma activada | El primer intento falló porque el rostro era muy pequeño (40 px): se documentó la distancia de la cámara y el tamaño mínimo es configurable |
 | **C. Robustez** | La misma persona coincide; otras no | Variaciones (luz, giro, ruido, desenfoque): 0,83–0,96; otras personas: −0,05 y 0,13 | Umbral fijado en 0,42 |
 | **D. Cámara desconectada** | No se cae; reintenta | Reintentos progresivos; el panel muestra “Sin señal” | Evento de sistema con un límite de 1 cada 30 s |
-| **Automáticas** | — | **23/23 aprobadas** (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
+| **Automáticas** | — | **24/24 aprobadas** (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
 
 Para ejecutar las pruebas automáticas: `cd backend && pip install -r requirements-dev.txt scikit-image && pytest -v`
 
@@ -611,7 +616,7 @@ Los riesgos y las medidas están detallados en **[docs/seguridad-privacidad.md](
 - **Revisión humana obligatoria:** ninguna alerta dispara acciones automáticas contra una persona.
 - **Cifrado** de fotos, plantillas biométricas y capturas (Fernet). La clave nunca sale de la Pi.
 - **Mínimo de datos:** no se guardan imágenes de personas sin coincidencia. Los eventos, las imágenes y los registros vencen y se borran automáticamente.
-- **Control de acceso:** 4 roles, contraseñas con scrypt, bloqueo por intentos fallidos, cambio obligatorio de la contraseña inicial y sesiones seguras.
+- **Control de acceso:** 4 roles, contraseñas con scrypt y sesiones seguras. Los intentos de inicio de sesión son ilimitados por defecto; el bloqueo por intentos fallidos (`FACEGUARD_LOGIN_MAX_ATTEMPTS`) y el cambio obligatorio de la contraseña inicial (`FACEGUARD_FORCE_PASSWORD_CHANGE`) se pueden activar.
 - **Auditoría** de todas las acciones administrativas, incluso de cada vez que alguien abre una imagen.
 - **Funciona sin Internet** y dentro de la red local; el servicio corre con un usuario sin privilegios y con systemd endurecido.
 - **Límites reconocidos:** posibles sesgos del modelo, no detecta fotos impresas o en pantalla, y Bolivia aún no tiene una ley general de protección de datos.
@@ -642,7 +647,7 @@ faceguard-ai/
 │   │   └── services/            # cámara, motor facial, pipeline, GPIO, tiempo real, retención, demo
 │   ├── migrations/              # esquema SQL versionado
 │   ├── scripts/                 # run.py (inicio), descarga de modelos (.py/.sh), gestión de usuarios, benchmark
-│   ├── tests/                   # 23 pruebas automáticas (pytest)
+│   ├── tests/                   # 24 pruebas automáticas (pytest)
 │   ├── .env.example             # configuración para ejecución manual (Windows / Pi)
 │   └── requirements.txt         # dependencias únicas para Windows y Raspberry Pi
 ├── frontend/                    # React + TypeScript + Tailwind (se compila a frontend/dist)
