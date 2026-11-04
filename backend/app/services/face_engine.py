@@ -263,11 +263,18 @@ class Gallery:
                 return []
             sims = self._matrix @ vec
             best: dict[int, dict[str, Any]] = {}
+            has_restricted = False
             for i in np.argsort(-sims):
-                if sims[i] < threshold or len(best) >= limit:
+                if sims[i] < threshold:
                     break
                 meta = self._meta[int(i)]
-                best.setdefault(meta["entry_id"], {**meta, "score": float(sims[i])})
+                restricted = meta["classification"] == "no_autorizada"
+                # El límite nunca deja fuera a la mejor coincidencia con la blacklist.
+                if len(best) >= limit and (has_restricted or not restricted):
+                    continue
+                if meta["entry_id"] not in best:
+                    best[meta["entry_id"]] = {**meta, "score": float(sims[i])}
+                    has_restricted = has_restricted or restricted
             return list(best.values())
 
 

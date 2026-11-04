@@ -150,6 +150,9 @@ export default function SettingsPage() {
                 <Field label="Imágenes de alertas (días)" hint="Borrado seguro del archivo cifrado.">
                   <Input type="number" min={1} max={3650} value={draft.retention_days_snapshots} disabled={!editable} onChange={(e) => set("retention_days_snapshots", Number(e.target.value))} />
                 </Field>
+                <Field label="Autorizadas vencidas (días)" hint="Después se borra su biometría.">
+                  <Input type="number" min={1} max={3650} value={draft.retention_days_expired_authorized} disabled={!editable} onChange={(e) => set("retention_days_expired_authorized", Number(e.target.value))} />
+                </Field>
                 <Field label="Auditoría (días)" hint="Mínimo 30 días.">
                   <Input type="number" min={30} max={3650} value={draft.retention_days_audit} disabled={!editable} onChange={(e) => set("retention_days_audit", Number(e.target.value))} />
                 </Field>

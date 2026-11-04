@@ -69,9 +69,9 @@ export interface FaceSample {
 
 export interface AnalysisMatch {
   entry_id: number | null;
-  uid: string;
-  name: string;
-  level: Level;
+  uid: string | null;
+  name: string | null;
+  level: Level | null;
   classification: Classification;
   score: number;
 }
@@ -239,6 +239,7 @@ export interface Settings {
   retention_days_events: number;
   retention_days_snapshots: number;
   retention_days_audit: number;
+  retention_days_expired_authorized: number;
   demo_mode: boolean;
 }
 

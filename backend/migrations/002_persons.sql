@@ -1,8 +1,7 @@
 -- FaceGuard AI · Migración 002 · Personas y muestras faciales
 -- La lista de alerta pasa a ser la tabla `persons`, con una clasificación por
 -- persona. Fotos y plantillas pasan a `face_samples` para admitir varias por persona.
--- Toda la migración es atómica: si algo falla, la base de datos queda como estaba.
-BEGIN;
+-- run_migrations la aplica en una sola transacción, junto con su registro.
 
 ALTER TABLE blacklist RENAME TO persons;
 ALTER TABLE blacklist_history RENAME TO person_history;
@@ -41,5 +40,3 @@ FROM persons WHERE photo_file IS NOT NULL;
 ALTER TABLE persons DROP COLUMN photo_file;
 ALTER TABLE persons DROP COLUMN embedding_enc;
 ALTER TABLE persons DROP COLUMN photo_quality;
-
-COMMIT;

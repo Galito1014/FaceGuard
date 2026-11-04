@@ -14,6 +14,11 @@ Fecha: 2026-11-04. Origen: especificación de ampliación entregada por Andrés.
 - El análisis de fotografías no guarda la imagen. Una posible coincidencia con la blacklist conserva solo el recorte en una alerta pendiente.
 - Los respaldos no incluyen la clave de cifrado por defecto.
 
+- Eliminar a una persona borra también las capturas de sus alertas y cierra las pendientes.
+- Una persona autorizada vencida se borra por completo tras `retention_days_expired_authorized` (30 días). Una no autorizada vencida se conserva sin participar en el reconocimiento.
+- La limpieza de archivos huérfanos se omite si la base de datos no tiene referencias o si los huérfanos superan a los archivos registrados.
+- El operador puede analizar fotografías, pero no ve la identidad de las personas autorizadas.
+
 ## Fuera de alcance
 
 - Filtro de calidad en video en vivo y reconocimiento con la imagen original (mejoras de precisión pendientes).

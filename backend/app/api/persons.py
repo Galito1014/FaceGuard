@@ -11,11 +11,11 @@ from fastapi.responses import Response
 
 from app.api.common import norm_dt, paginate
 from app.core.audit import audit
-from app.core.crypto import read_encrypted_file, secure_delete
+from app.core.crypto import read_encrypted_file
 from app.core.database import get_db, query, query_one, utcnow
 from app.core.security import client_ip, has_perm, require
 from app.services.face_engine import engine, gallery
-from app.services.persons import content_hash, find_similar, insert_sample, primary_photo_file
+from app.services.persons import content_hash, delete_files, find_similar, insert_sample, primary_photo_file
 from app.services.settings_store import settings
 
 router = APIRouter(prefix="/api/persons", tags=["persons"])
@@ -58,11 +58,19 @@ def image_pixels(data: bytes) -> int | None:
     if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
         return int.from_bytes(data[16:20], "big") * int.from_bytes(data[20:24], "big")
     i = 2
-    while i + 9 < len(data) and data[i] == 0xFF:  # segmentos JPEG hasta el marcador SOF
+    while i + 1 < len(data):  # segmentos JPEG hasta el marcador SOF
+        if data[i] != 0xFF:
+            return None
+        if data[i + 1] == 0xFF:  # bytes de relleno permitidos entre segmentos
+            i += 1
+            continue
         marker = data[i + 1]
         if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
             return int.from_bytes(data[i + 5:i + 7], "big") * int.from_bytes(data[i + 7:i + 9], "big")
-        i += 2 + int.from_bytes(data[i + 2:i + 4], "big")
+        size = int.from_bytes(data[i + 2:i + 4], "big")
+        if size < 2:
+            return None
+        i += 2 + size
     return None
 
 
@@ -72,7 +80,10 @@ async def read_photo(photo: UploadFile) -> bytes:
         raise HTTPException(413, "La fotografía supera 6 MB.")
     if not data[:3] == b"\xff\xd8\xff" and not data[:8] == b"\x89PNG\r\n\x1a\n":
         raise HTTPException(415, "Formato no admitido. Use JPG o PNG.")
-    if (image_pixels(data) or 0) > MAX_PIXELS:
+    pixels = image_pixels(data)
+    if pixels is None:
+        raise HTTPException(422, "La imagen está dañada o no se puede leer.")
+    if pixels > MAX_PIXELS:
         raise HTTPException(413, "La imagen tiene demasiados píxeles. Redúzcala antes de subirla.")
     return data
 
@@ -281,23 +292,31 @@ async def update_entry(
                 old_file = old["photo_file"]
             insert_sample(db, entry_id, data, report, user["id"], primary=True)
         _history(db, entry_id, user, "modificado", changes, now)
-    secure_delete(old_file)
     gallery.load()
     audit(user, "modificación de registro", target=row["uid"], details=list(changes), ip=client_ip(request))
+    delete_files([old_file] if old_file else [])
     return _serialize(_person(entry_id), user)
 
 
 @router.delete("/{entry_id}")
 def delete_entry(entry_id: int, request: Request, user: dict = Depends(require("blacklist.edit"))):
-    """Eliminación definitiva: borra de forma segura las fotos y las plantillas."""
+    """Eliminación definitiva: fotos, plantillas y capturas de sus alertas.
+
+    Las alertas se conservan como registro de lo ocurrido, sin imagen y solo con
+    el identificador. Las pendientes se cierran: ya no hay persona que revisar.
+    """
     row = _person(entry_id)
     files = [r["photo_file"] for r in query("SELECT photo_file FROM face_samples WHERE person_id = ?", (entry_id,))]
+    files += [r["snapshot_file"] for r in query(
+        "SELECT snapshot_file FROM events WHERE entry_id = ? AND snapshot_file IS NOT NULL", (entry_id,))]
     with get_db() as db:
+        db.execute("""UPDATE events SET snapshot_file = NULL, entry_name = ?,
+                        review_status = CASE WHEN review_status = 'pendiente' THEN 'cerrada' ELSE review_status END
+                      WHERE entry_id = ?""", (row["uid"], entry_id))
         db.execute("DELETE FROM persons WHERE id = ?", (entry_id,))
-    for name in files:
-        secure_delete(name)
     gallery.load()
-    audit(user, "eliminación de registro", target=row["uid"], details={"nombre": row["full_name"]}, ip=client_ip(request))
+    audit(user, "eliminación de registro", target=row["uid"], details={"clasificación": row["classification"]}, ip=client_ip(request))
+    delete_files(files)
     return {"ok": True}
 
 
@@ -366,9 +385,9 @@ def delete_sample(entry_id: int, sample_id: int, request: Request, user: dict = 
             db.execute("""UPDATE face_samples SET is_primary = 1 WHERE id =
                           (SELECT MIN(id) FROM face_samples WHERE person_id = ?)""", (entry_id,))
         _history(db, entry_id, user, "fotografía eliminada", {"muestra": sample_id}, now)
-    secure_delete(sample["photo_file"])
     gallery.load()
     audit(user, "eliminar fotografía", target=row["uid"], ip=client_ip(request))
+    delete_files([sample["photo_file"]])
     return {"ok": True}
 
 

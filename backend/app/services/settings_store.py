@@ -37,6 +37,7 @@ DEFAULTS: dict[str, Any] = {
     "retention_days_events": 30,
     "retention_days_snapshots": 15,
     "retention_days_audit": 365,
+    "retention_days_expired_authorized": 30,  # días tras vencer antes de borrar su biometría
     # Demostración
     "demo_mode": False,
 }
@@ -68,6 +69,7 @@ RULES: dict[str, Any] = {
     "retention_days_events": (int, 1, 3650),
     "retention_days_snapshots": (int, 1, 3650),
     "retention_days_audit": (int, 30, 3650),
+    "retention_days_expired_authorized": (int, 1, 3650),
     "demo_mode": (bool,),
 }
 

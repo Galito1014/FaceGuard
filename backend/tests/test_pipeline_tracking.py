@@ -148,3 +148,20 @@ def test_blacklist_sigue_alertando_con_clasificacion(env):
     env.best_match = ({**META, "classification": "no_autorizada"}, 0.7)
     run_cycles(env, env.cfg, 3)
     assert len(env.alerts) == 2
+
+
+def test_autorizada_no_deja_su_similitud_en_el_historial(env, monkeypatch):
+    from app.core.database import query_one
+    monkeypatch.undo()
+    monkeypatch.setattr(gallery, "_meta", [META])
+    monkeypatch.setattr(engine, "ready", True)
+    monkeypatch.setattr(engine, "detect", lambda *a: ([Face(box=(1, 1, 80, 80), score=0.9, raw=np.zeros(15, np.float32))], env.frame, 1.0))
+    monkeypatch.setattr(engine, "embed", lambda s, f: np.ones(128, np.float32))
+    monkeypatch.setattr(gallery, "best_match", lambda vec, threshold=None: ({**META, "classification": "autorizada"}, 0.96))
+    pipeline._last_detection_log = 0
+    pipeline.reset_tracking()
+    for i in range(3):  # en verificación y ya confirmada
+        pipeline._last_detection_log = 0
+        pipeline._process_real(env.frame, env.cfg, now=i * 0.25)
+        row = query_one("SELECT score FROM events WHERE type = 'deteccion' ORDER BY id DESC LIMIT 1")
+        assert row["score"] is None

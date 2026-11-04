@@ -25,7 +25,7 @@ log = logging.getLogger("faceguard.backup")
 FORMAT = 1
 DB_NAME = "faceguard.db"
 KEY_NAME = "secret/fernet.key"
-_SAFE_MEDIA = re.compile(r"^media/(photos|snapshots)/[A-Za-z0-9._-]+$")
+_SAFE_MEDIA = re.compile(r"media/(photos|snapshots)/[A-Za-z0-9_-]+\.bin")
 
 
 class BackupError(Exception):
@@ -55,8 +55,10 @@ def create_backup(dest_dir: Path, include_key: bool = False) -> Path:
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     target = dest_dir / f"faceguard-respaldo-{_timestamp()}.zip"
+    # Se escribe en una carpeta privada: un fallo no deja un .zip legible a medias.
     with tempfile.TemporaryDirectory(dir=dest_dir) as tmp:
         snapshot = Path(tmp) / DB_NAME
+        partial = Path(tmp) / target.name
         source = sqlite3.connect(config.db_path)
         copy = sqlite3.connect(snapshot)
         try:
@@ -66,7 +68,7 @@ def create_backup(dest_dir: Path, include_key: bool = False) -> Path:
             source.close()
         manifest = {"format": FORMAT, "created_at": datetime.now().astimezone().isoformat(),
                     "app_version": config.version, "key_fingerprint": _current_fingerprint(), "includes_key": include_key}
-        with zipfile.ZipFile(target, "w", zipfile.ZIP_STORED) as z:
+        with zipfile.ZipFile(partial, "w", zipfile.ZIP_STORED) as z:
             z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
             z.write(snapshot, DB_NAME)
             for sub in ("photos", "snapshots"):
@@ -76,7 +78,8 @@ def create_backup(dest_dir: Path, include_key: bool = False) -> Path:
                         z.write(f, f"media/{sub}/{f.name}")
             if include_key:
                 z.write(_key_file(), KEY_NAME)
-    os.chmod(target, 0o600)
+        os.chmod(partial, 0o600)
+        os.replace(partial, target)
     log.info("Respaldo creado: %s", target)
     return target
 
@@ -94,7 +97,7 @@ def _read_manifest(z: zipfile.ZipFile) -> dict:
 def _check_names(names: list[str]) -> None:
     allowed = {"manifest.json", DB_NAME, KEY_NAME}
     for name in names:
-        if name not in allowed and not _SAFE_MEDIA.match(name):
+        if name not in allowed and not _SAFE_MEDIA.fullmatch(name):
             raise BackupError(f"El respaldo contiene una ruta no permitida: {name}")
     if DB_NAME not in names:
         raise BackupError("El respaldo no contiene la base de datos.")
@@ -110,6 +113,44 @@ def _check_database(path: Path) -> None:
         conn.close()
     if result != "ok":
         raise BackupError("La base de datos del respaldo está dañada.")
+
+
+def _swap(staging: Path, has_key: bool) -> Path:
+    """Instala lo validado. Si un paso falla, deshace todos los anteriores."""
+    previous = config.data_dir / f"pre-restore-{_timestamp()}"
+    previous.mkdir()
+    (previous / "secret").mkdir()
+    for sub in ("photos", "snapshots"):
+        (staging / "media" / sub).mkdir(parents=True, exist_ok=True)
+    steps: list[tuple[Path, Path]] = [(config.media_dir, previous / "media")]
+    if has_key:
+        steps += [(_key_file(), previous / "secret" / "fernet.key"), (staging / KEY_NAME, _key_file())]
+    steps.append((staging / "media", config.media_dir))
+    # La base de datos va al final: sin ella en su lugar el sistema no arranca bien.
+    for suffix in ("", "-wal", "-shm"):
+        current = Path(f"{config.db_path}{suffix}")
+        steps.append((current, previous / current.name))
+    steps.append((staging / DB_NAME, config.db_path))
+
+    done: list[tuple[Path, Path]] = []
+    try:
+        for source, target in steps:
+            if source.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(source), str(target))
+                done.append((source, target))
+    except OSError as exc:
+        try:
+            for source, target in reversed(done):
+                shutil.move(str(target), str(source))
+        except OSError:
+            log.critical("No se pudo deshacer la restauración. Datos anteriores en %s", previous)
+            raise BackupError(f"La restauración falló a medias. Los datos anteriores están en {previous}.") from exc
+        shutil.rmtree(previous, ignore_errors=True)
+        raise BackupError("No se pudo completar la restauración. Los datos actuales no cambiaron.") from exc
+    if has_key:
+        os.chmod(_key_file(), 0o600)
+    return previous
 
 
 def restore_backup(path: Path) -> Path:
@@ -130,34 +171,14 @@ def restore_backup(path: Path) -> Path:
         has_key = KEY_NAME in names
         with tempfile.TemporaryDirectory(dir=config.data_dir) as tmp:
             staging = Path(tmp)
-            z.extractall(staging)
+            try:
+                z.extractall(staging)
+            except (OSError, RuntimeError, zipfile.BadZipFile) as exc:
+                raise BackupError("El respaldo está dañado.") from exc
             _check_database(staging / DB_NAME)
             if not has_key and manifest.get("key_fingerprint") != _current_fingerprint():
                 raise BackupError("La clave de cifrado de este equipo no coincide con la del respaldo. "
                                   "Copie la clave original o use un respaldo creado con --with-key.")
-            previous = config.data_dir / f"pre-restore-{_timestamp()}"
-            previous.mkdir()
-            for suffix in ("", "-wal", "-shm"):
-                current = Path(f"{config.db_path}{suffix}")
-                if current.exists():
-                    shutil.move(str(current), previous / current.name)
-            if config.media_dir.exists():
-                shutil.move(str(config.media_dir), previous / "media")
-            if has_key and _key_file().exists():
-                (previous / "secret").mkdir()
-                shutil.move(str(_key_file()), previous / "secret" / "fernet.key")
-            config.db_path.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(staging / DB_NAME), config.db_path)
-            config.media_dir.mkdir(parents=True, exist_ok=True)
-            for sub in ("photos", "snapshots"):
-                (config.media_dir / sub).mkdir(exist_ok=True)
-                source = staging / "media" / sub
-                if source.exists():
-                    for f in source.iterdir():
-                        shutil.move(str(f), config.media_dir / sub / f.name)
-            if has_key:
-                config.secret_dir.mkdir(parents=True, exist_ok=True)
-                shutil.move(str(staging / KEY_NAME), _key_file())
-                os.chmod(_key_file(), 0o600)
+            previous = _swap(staging, has_key)
     log.warning("Respaldo restaurado desde %s; datos anteriores en %s", path, previous)
     return previous

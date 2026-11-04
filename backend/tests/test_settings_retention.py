@@ -42,12 +42,68 @@ def test_retencion_borra_archivos_huerfanos_antiguos(client):
     from app.services.retention import run_retention
     old = config.media_dir / "photos" / "huerfano.bin"
     new = config.media_dir / "photos" / "reciente.bin"
+    from app.core.database import execute, utcnow
     old.write_bytes(b"x"); new.write_bytes(b"x")
     past = time.time() - 7200
     os.utime(old, (past, past))
+    execute("INSERT INTO events (uid, occurred_at, camera, type, snapshot_file) VALUES ('EV-REF', ?, 'c', 'sistema', 'snapshots/ref.bin')", (utcnow(),))
     run_retention()
     assert not old.exists() and new.exists()
     new.unlink()
+    execute("DELETE FROM events WHERE uid = 'EV-REF'")
+
+
+def _old_media(n):
+    import os
+    import time
+    from app.config import config
+    files = [config.media_dir / "photos" / f"viejo{i}.bin" for i in range(n)]
+    past = time.time() - 7200
+    for f in files:
+        f.write_bytes(b"x")
+        os.utime(f, (past, past))
+    return files
+
+
+def test_base_sin_referencias_no_borra_las_imagenes(client):
+    """Una base vacía o equivocada no prueba que los archivos sobren."""
+    from app.core.database import execute
+    from app.services.retention import run_retention
+    execute("DELETE FROM persons")
+    execute("UPDATE events SET snapshot_file = NULL")
+    files = _old_media(3)
+    assert run_retention()["orphans_deleted"] == 0
+    assert all(f.exists() for f in files)
+    for f in files:
+        f.unlink()
+
+
+def test_no_borra_si_la_mayoria_de_archivos_parecen_huerfanos(client):
+    from app.core.database import execute, utcnow
+    from app.services.retention import run_retention
+    execute("INSERT INTO events (uid, occurred_at, camera, type, snapshot_file) VALUES ('EV-R2', ?, 'c', 'sistema', 'snapshots/ref.bin')", (utcnow(),))
+    files = _old_media(8)
+    assert run_retention()["orphans_deleted"] == 0
+    assert all(f.exists() for f in files)
+    for f in files:
+        f.unlink()
+    execute("DELETE FROM events WHERE uid = 'EV-R2'")
+
+
+def test_fallo_al_limpiar_no_impide_recargar_la_galeria(client, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from app.core.database import execute, utcnow
+    from app.services import retention
+    from app.services.face_engine import gallery
+    now = utcnow()
+    past = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    execute("""INSERT INTO persons (uid, full_name, reason, legal_basis, alert_level, registered_at, expires_at, updated_at)
+               VALUES ('FG-VENCE','V','r','l','bajo',?,?,?)""", (now, past, now))
+    version = gallery.version
+    monkeypatch.setattr(retention, "_remove_orphans", lambda: (_ for _ in ()).throw(OSError("fallo")))
+    retention.run_retention()
+    assert gallery.version > version
+    execute("DELETE FROM persons WHERE uid = 'FG-VENCE'")
 
 
 def test_opciones_de_sonido_y_almacenamiento(client):

@@ -88,10 +88,10 @@ function FaceCard({ index, face }: { index: number; face: AnalysisFace }) {
         <span className="font-mono text-xs text-ink-300">Rostro {index}</span>
         <Badge tone={info.tone} dot>{info.label}</Badge>
       </div>
-      {face.match && <p className="text-ink-100">{face.match.name} <span className="font-mono text-xs text-ink-400">{face.match.uid} · similitud {fmtScore(face.score)}</span></p>}
+      {face.match && <p className="text-ink-100">{face.match.name ?? "Identidad reservada"} <span className="font-mono text-xs text-ink-400">{face.match.uid ? `${face.match.uid} · ` : ""}similitud {fmtScore(face.score)}</span></p>}
       {face.quality_issues.map((issue) => <p key={issue} className="text-xs text-warn-400">{issue}</p>)}
       {face.ambiguous && <p className="mt-1 flex items-center gap-1.5 text-xs text-warn-400"><TriangleAlert className="h-3.5 w-3.5" />Resultado ambiguo: se parece a más de una persona.</p>}
-      {face.alternatives.map((m) => <p key={m.uid} className="text-xs text-ink-300">También se parece a {m.name} ({fmtScore(m.score)})</p>)}
+      {face.alternatives.map((m, i) => <p key={i} className="text-xs text-ink-300">También se parece a {m.name ?? "una persona autorizada"} ({fmtScore(m.score)})</p>)}
       {face.alert && <Link to={`/alertas?id=${face.alert.id}`} className="mt-1 inline-block text-xs font-medium text-volt-400 hover:text-volt-300">Revisar alerta {face.alert.uid} →</Link>}
     </div>
   );

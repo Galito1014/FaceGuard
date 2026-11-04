@@ -66,6 +66,16 @@ def insert_sample(db: sqlite3.Connection, person_id: int, data: bytes, report: d
     return cur.lastrowid, photo_file
 
 
+def delete_files(names: list[str]) -> None:
+    """Borra archivos cifrados. Un fallo no interrumpe la operación: la limpieza
+    de huérfanos lo reintenta más tarde."""
+    for name in names:
+        try:
+            secure_delete(name)
+        except OSError:
+            log.exception("No se pudo borrar %s", name)
+
+
 def primary_photo_file(person_id: int) -> str | None:
     rows = query("SELECT photo_file FROM face_samples WHERE person_id = ? ORDER BY is_primary DESC, id LIMIT 1", (person_id,))
     return rows[0]["photo_file"] if rows else None

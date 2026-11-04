@@ -8,6 +8,7 @@ import pytest
 
 from app.config import config
 from app.core.crypto import encrypt_embedding
+from app.core import database
 from app.core.database import MIGRATIONS_DIR, execute, query, query_one, utcnow
 from app.services.face_engine import MODEL_VERSION, gallery
 
@@ -76,7 +77,7 @@ def test_migracion_conserva_registros_fotos_y_alertas(tmp_path):
     db.execute("INSERT INTO events (uid, occurred_at, camera, type, entry_id) VALUES ('E1','t','c','coincidencia',7)")
     db.commit()
 
-    db.executescript((MIGRATIONS_DIR / "002_persons.sql").read_text(encoding="utf-8"))
+    db.executescript("BEGIN;" + (MIGRATIONS_DIR / "002_persons.sql").read_text(encoding="utf-8") + "COMMIT;")
 
     assert db.execute("SELECT full_name, classification FROM persons WHERE id=7").fetchone() == ("Ana", "no_autorizada")
     assert db.execute("""SELECT photo_file, embedding_enc, model_version, is_primary FROM face_samples
@@ -87,6 +88,62 @@ def test_migracion_conserva_registros_fotos_y_alertas(tmp_path):
     assert db.execute("SELECT COUNT(*) FROM face_samples").fetchone() == (0,)
     assert db.execute("SELECT entry_id FROM events WHERE uid='E1'").fetchone() == (None,)
     db.close()
+
+
+def _old_database(path):
+    db = sqlite3.connect(path)
+    db.execute("CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)")
+    db.executescript((MIGRATIONS_DIR / "001_initial.sql").read_text(encoding="utf-8"))
+    db.execute("INSERT INTO schema_migrations VALUES ('001_initial', 't')")
+    db.execute("""INSERT INTO blacklist (uid, full_name, reason, legal_basis, alert_level, registered_at, expires_at, updated_at)
+                  VALUES ('FG-1','Ana','r','l','alto','t','2099','t')""")
+    db.commit()
+    db.close()
+
+
+def test_migracion_y_su_registro_son_atomicos(tmp_path, monkeypatch):
+    """Un corte entre la migración y su registro no debe impedir el arranque."""
+    path = tmp_path / "old.db"
+    _old_database(path)
+    monkeypatch.setattr(database, "utcnow", lambda: (_ for _ in ()).throw(sqlite3.OperationalError("corte")))
+    with pytest.raises(sqlite3.OperationalError):
+        database.run_migrations(path)
+    monkeypatch.undo()
+    assert database.run_migrations(path) == ["002_persons"]
+    db = sqlite3.connect(path)
+    assert db.execute("SELECT full_name FROM persons").fetchone() == ("Ana",)
+    db.close()
+
+
+def test_fallo_en_medio_de_una_migracion_no_cambia_nada(tmp_path, monkeypatch):
+    path = tmp_path / "old.db"
+    _old_database(path)
+    bad = tmp_path / "migrations"
+    bad.mkdir()
+    (bad / "001_initial.sql").write_text("", encoding="utf-8")
+    (bad / "002_mala.sql").write_text("ALTER TABLE blacklist RENAME TO x; SELECT * FROM no_existe;", encoding="utf-8")
+    monkeypatch.setattr(database, "MIGRATIONS_DIR", bad)
+    with pytest.raises(sqlite3.OperationalError):
+        database.run_migrations(path)
+    db = sqlite3.connect(path)
+    assert db.execute("SELECT COUNT(*) FROM blacklist").fetchone() == (1,)
+    db.close()
+
+
+def test_copia_automatica_antes_de_migrar(tmp_path):
+    path = tmp_path / "old.db"
+    _old_database(path)
+    database.run_migrations(path)
+    copies = list(tmp_path.glob("old.db.antes-de-*"))
+    assert len(copies) == 1
+    db = sqlite3.connect(copies[0])
+    assert db.execute("SELECT full_name FROM blacklist").fetchone() == ("Ana",)
+    db.close()
+
+
+def test_base_nueva_no_crea_copia(tmp_path):
+    database.run_migrations(tmp_path / "nueva.db")
+    assert not list(tmp_path.glob("*.antes-de-*"))
 
 
 # ------------------------------------------------------------------- galería
@@ -130,6 +187,15 @@ def test_top_matches_agrupa_por_persona(clean):
     _person("C", "autorizada", _near(vec, 0.1, 9))
     gallery.load()
     assert [m["entry_id"] for m in gallery.top_matches(vec, 0.42)] == [a, b]
+
+
+def test_top_matches_conserva_blacklist_aunque_haya_tres_autorizadas_mejores(clean):
+    vec = _unit(20)
+    for i, sim in enumerate((0.9, 0.85, 0.8)):
+        _person(f"A{i}", "autorizada", _near(vec, sim, 30 + i))
+    bl = _person("B", "no_autorizada", _near(vec, 0.7, 40))
+    gallery.load()
+    assert bl in [m["entry_id"] for m in gallery.top_matches(vec, 0.42)]
 
 
 # ----------------------------------------------------------------------- API
@@ -228,3 +294,58 @@ def test_eliminar_persona_borra_todos_sus_archivos(client, clean):
     assert client.delete(f"/api/persons/{pid}").status_code == 200
     on_disk = {f.name for f in (config.media_dir / "photos").glob("*.bin")}
     assert not on_disk & set(names)
+
+
+def test_fallo_al_borrar_archivo_no_deja_a_la_persona_en_la_galeria(client, clean, monkeypatch):
+    pid = _person("Ana", "no_autorizada", _unit(50))
+    gallery.load()
+
+    def locked(name):
+        raise PermissionError("archivo en uso")
+    monkeypatch.setattr("app.services.persons.secure_delete", locked)
+    assert client.delete(f"/api/persons/{pid}").status_code == 200
+    assert gallery.size == 0
+    assert query_one("SELECT action FROM audit_log ORDER BY id DESC LIMIT 1")["action"] == "eliminación de registro"
+
+
+def test_eliminar_persona_borra_sus_capturas_de_alertas(client, clean):
+    from app.core.crypto import save_encrypted_file
+    pid = _person("Ana", "no_autorizada", _unit(51))
+    snap = save_encrypted_file("snapshots", b"rostro")
+    execute("""INSERT INTO events (uid, occurred_at, camera, type, entry_id, entry_name, review_status, snapshot_file)
+               VALUES ('EV-DEL', ?, 'c', 'coincidencia', ?, 'Ana', 'pendiente', ?)""", (utcnow(), pid, snap))
+    assert client.delete(f"/api/persons/{pid}").status_code == 200
+    ev = query_one("SELECT * FROM events WHERE uid = 'EV-DEL'")
+    assert ev["snapshot_file"] is None and ev["entry_name"] == "T-Ana" and ev["review_status"] == "cerrada"
+    assert not (config.media_dir / snap).exists()
+
+
+def test_vencer_autorizada_borra_su_biometria_tras_el_plazo(client, clean):
+    from datetime import datetime, timedelta, timezone
+    from app.services.retention import run_retention
+    old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    recent = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    a = _person("Antigua", "autorizada", _unit(52))
+    b = _person("Reciente", "autorizada", _unit(53))
+    c = _person("Blacklist", "no_autorizada", _unit(54))
+    execute("UPDATE persons SET expires_at = ?, status = 'vencido' WHERE id IN (?, ?)", (old, a, c))
+    execute("UPDATE persons SET expires_at = ?, status = 'vencido' WHERE id = ?", (recent, b))
+    assert run_retention()["authorized_purged"] == 1
+    ids = {r["id"] for r in query("SELECT id FROM persons")}
+    assert ids == {b, c}
+
+
+def test_jpeg_con_bytes_de_relleno_no_evita_el_limite(client, monkeypatch):
+    from app.api import persons
+    data = _jpeg(np.full((400, 600, 3), 128, np.uint8))
+    tricky = data[:2] + b"\xff" * 4 + data[2:]
+    assert persons.image_pixels(tricky) == 240000
+    monkeypatch.setattr(persons, "MAX_PIXELS", 100)
+    r = client.post("/api/analysis/photo", files={"photo": ("a.jpg", tricky, "image/jpeg")})
+    assert r.status_code == 413
+
+
+def test_jpeg_sin_dimensiones_legibles_se_rechaza(client):
+    tricky = b"\xff\xd8\xff\xe0\x00\x00" + b"\x00" * 40
+    r = client.post("/api/analysis/photo", files={"photo": ("a.jpg", tricky, "image/jpeg")})
+    assert r.status_code == 422

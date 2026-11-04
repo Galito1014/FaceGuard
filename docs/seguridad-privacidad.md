@@ -3,7 +3,7 @@
 Los datos biométricos (fotografías y plantillas faciales) son **datos personales sensibles**. Un error del sistema puede afectar a una persona inocente. Por eso el diseño parte de tres principios:
 
 1. **El sistema solo sugiere y una persona decide.** Toda coincidencia es preliminar y queda “Pendiente de revisión”. FaceGuard no bloquea puertas ni toma acciones contra nadie.
-2. **Mínimo de datos.** No se guardan fotos de quienes no coinciden con la lista, y el paso de una persona autorizada no se registra. El análisis de fotografías no guarda la imagen. Todo vence y se borra automáticamente.
+2. **Mínimo de datos.** No se guardan fotos de quienes no coinciden con la lista, y el paso de una persona autorizada no se registra. El análisis de fotografías no guarda la imagen. Las alertas y capturas se borran solas, y las personas autorizadas vencidas también. Una persona no autorizada vencida deja de reconocerse y se conserva hasta que un administrador decida.
 3. **Todo queda registrado.** Cada acción administrativa queda en la auditoría.
 
 ## Riesgos identificados y cómo se reducen
@@ -27,7 +27,7 @@ Registrar a una persona autorizada guarda su biometría aunque no haya hecho nad
 
 ## Respaldos
 
-Un respaldo contiene toda la biometría cifrada. Por defecto no incluye la clave, que debe guardarse por separado. Trate cualquier respaldo creado con `--with-key` como datos sensibles sin cifrar.
+Un respaldo contiene toda la biometría cifrada. Por defecto no incluye la clave, que debe guardarse por separado. Trate cualquier respaldo creado con `--with-key`, y las carpetas `pre-restore-*`, como datos sensibles sin cifrar. La copia `faceguard.db.antes-de-*` contiene los mismos datos que la base de datos. Eliminar a una persona no la borra de los respaldos anteriores.
 
 ## Limitaciones conocidas (honestidad técnica)
 

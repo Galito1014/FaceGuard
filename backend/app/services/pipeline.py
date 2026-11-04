@@ -189,9 +189,11 @@ class Pipeline:
             overlay.append({"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed and not authorized,
                             "label": label})
         self._publish_overlay(overlay)
-        unmatched = [f.best_score for f in faces if not f.match]
+        # Una similitud sobre el umbral sin alerta delataría que pasó una persona
+        # autorizada, así que el evento solo guarda las que no coinciden con nadie.
+        unmatched = [f.best_score for f in faces if f.best_score < cfg["match_threshold"]]
         best = max(unmatched, default=None) if gallery.size else None
-        self._log_detection(len(faces), best, False, matched=len(faces) - len(unmatched))
+        self._log_detection(len(faces), best, False, matched=sum(1 for f in faces if f.match))
 
     # ---------------------------------------------------- modo demostración
     def _process_demo(self, frame: np.ndarray, cfg: dict[str, Any]) -> None:

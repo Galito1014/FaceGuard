@@ -150,3 +150,26 @@ def test_foto_real_de_persona_registrada(client):
     assert r["faces"][0]["match"]["entry_id"] == pid and r["faces"][0]["score"] > 0.6
     execute("DELETE FROM persons WHERE id = ?", (pid,))
     gallery.load()
+
+
+def test_operador_no_ve_la_identidad_de_una_autorizada(client, faces):
+    from tests.conftest import make_user
+    faces((BOX, [{**AUT, "score": 0.7}]))
+    face = _send(make_user(client, "operador_identidad", "operator"), _texture()).json()["faces"][0]
+    assert face["result"] == "autorizada"
+    assert face["match"]["name"] is None and face["match"]["uid"] is None and face["match"]["entry_id"] is None
+
+
+def test_operador_no_ve_autorizadas_entre_las_alternativas(client, faces):
+    from tests.conftest import make_user
+    faces((BOX, [{**AUT, "score": 0.7}, {**META, "score": 0.68}]))
+    face = _send(make_user(client, "operador_alternativas", "operator"), _texture()).json()["faces"][0]
+    assert face["match"]["name"] == "Ana" and face["alternatives"][0]["name"] is None
+
+
+def test_auditoria_guarda_a_quien_se_identifico(client, faces):
+    import json
+    faces((BOX, [{**AUT, "score": 0.7}]))
+    _send(client, _texture())
+    row = query_one("SELECT details FROM audit_log WHERE action = 'análisis de fotografía' ORDER BY id DESC LIMIT 1")
+    assert "FG-2" in row["details"]

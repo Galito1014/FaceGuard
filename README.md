@@ -595,12 +595,14 @@ La documentación interactiva de la API está en `http://<host>:8000/api/docs`.
 - **Varias fotos:** en el detalle de una persona, *Fotografías → Añadir*. Varias fotos con distintos ángulos mejoran el reconocimiento, y cada una guarda la versión del modelo que la generó.
 - **Duplicados:** si una foto se parece a otra persona registrada, el sistema lo avisa y exige una decisión del administrador.
 - **Prioridad de la blacklist:** si un rostro supera el umbral con alguien de la blacklist, se genera la alerta aunque una persona autorizada se parezca más. Decide la revisión humana.
-- **Analizar fotografía:** muestra un resultado por rostro: posible coincidencia, autorizada, desconocida o calidad insuficiente. La foto no se guarda y no registra a nadie. Si hay una posible coincidencia con la blacklist, se conserva solo el recorte del rostro en una alerta pendiente de revisión.
+- **Analizar fotografía** (operador o administrador): el operador no ve la identidad de las personas autorizadas, y cada análisis queda en la auditoría con los identificadores coincidentes. Muestra un resultado por rostro: posible coincidencia, autorizada, desconocida o calidad insuficiente. La foto no se guarda y no registra a nadie. Si hay una posible coincidencia con la blacklist, se conserva solo el recorte del rostro en una alerta pendiente de revisión.
+- **Eliminar una persona:** borra sus fotos, sus plantillas y las capturas de sus alertas. Las alertas quedan sin imagen y con el identificador en lugar del nombre, y las pendientes se cierran.
+- **Vencimiento:** una persona autorizada vencida se borra por completo tras 30 días (configurable). Una no autorizada vencida deja de participar en el reconocimiento y se conserva hasta que un administrador la elimine o la renueve.
 - **Similitud:** se muestra como similitud coseno de SFace, por ejemplo `0.612`. No es un porcentaje de certeza.
 
 ### Base de datos
 
-El esquema se crea y se actualiza solo al iniciar, con las migraciones de `backend/migrations/`. La migración 002 convierte la lista de alerta existente, conservando registros, fotos y alertas.
+El esquema se crea y se actualiza solo al iniciar, con las migraciones de `backend/migrations/`. Antes de cambiar una base de datos existente se guarda una copia junto a ella (`faceguard.db.antes-de-<migración>`). La migración 002 convierte la lista de alerta, conservando registros, fotos y alertas. Cuando compruebe que todo funciona, borre esa copia: contiene los mismos datos.
 
 | Tabla | Contenido |
 |---|---|
@@ -623,7 +625,7 @@ python -m scripts.manage backup --with-key      # incluye la clave de cifrado
 python -m scripts.manage restore respaldo.zip   # con FaceGuard detenido
 ```
 
-El respaldo **no incluye la clave de cifrado** por defecto: guarde aparte una copia de `<datos>/secret/fernet.key`, porque sin ella las fotos y plantillas no se pueden leer. Con `--with-key`, cualquiera que obtenga el archivo podrá leerlas. La restauración valida el respaldo antes de tocar nada y deja los datos anteriores en `<datos>/pre-restore-<fecha>`.
+El respaldo **no incluye la clave de cifrado** por defecto: guarde aparte una copia de `<datos>/secret/fernet.key`, porque sin ella las fotos y plantillas no se pueden leer. Con `--with-key`, cualquiera que obtenga el archivo podrá leerlas. La restauración valida el respaldo antes de tocar nada, y si falla a medias deja los datos como estaban. Si termina bien, los datos anteriores quedan en `<datos>/pre-restore-<fecha>`, incluida la clave cuando el respaldo traía otra: borre esa carpeta cuando compruebe que todo funciona.
 
 ### Rendimiento
 
@@ -648,7 +650,8 @@ El respaldo **no incluye la clave de cifrado** por defecto: guarde aparte una co
 | Dashboard | ✅ | ✅ | ✅ | ✅ |
 | Video en vivo y capturas | ✅ | ✅ | ✅ | — |
 | Revisar alertas (con imágenes) | ✅ | ✅ | ✅ | solo consulta, sin imágenes |
-| Ver la lista de alerta | ✅ | ✅ | — | ✅ (sin fotos) |
+| Ver personas y blacklist | ✅ | ✅ | — | ✅ (sin fotos) |
+| Analizar fotografías | ✅ | ✅ | ✅ | — |
 | Crear, editar o eliminar registros | ✅ | ✅ | — | — |
 | Historial / exportar | ✅ / ✅ | ✅ / ✅ | ✅ / — | ✅ / ✅ |
 | Auditoría | ✅ | — | — | ✅ |
@@ -665,7 +668,7 @@ La evidencia completa está en **[docs/pruebas.md](docs/pruebas.md)**. Resumen:
 | **B. Persona registrada** | 1 alerta, LED + buzzer, notificación | Similitud 0,95; **1 sola alerta** aunque la persona apareció varias veces; alarma activada | El primer intento falló porque el rostro era muy pequeño (40 px): se documentó la distancia de la cámara y el tamaño mínimo es configurable |
 | **C. Robustez** | La misma persona coincide; otras no | Variaciones (luz, giro, ruido, desenfoque): 0,83–0,96; otras personas: −0,05 y 0,13 | Umbral fijado en 0,42 |
 | **D. Cámara desconectada** | No se cae; reintenta | Reintentos progresivos; el panel muestra “Sin señal” | Evento de sistema con un límite de 1 cada 30 s |
-| **Automáticas** | — | **94/94 aprobadas** en Linux con Python 3.13 (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
+| **Automáticas** | — | **122/122 aprobadas** en Linux con Python 3.13 (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
 
 Para ejecutar las pruebas automáticas: `cd backend && pip install -r requirements-dev.txt scikit-image && pytest -v`
 
