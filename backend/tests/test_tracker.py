@@ -1,5 +1,6 @@
 """Seguimiento de rostros: asociación entre ciclos y racha por rostro."""
 from app.services.tracker import TRACK_TTL_SECONDS, FaceTracker
+from scripts.benchmark_engine import simulate
 
 META_A = {"entry_id": 1}
 META_B = {"entry_id": 2}
@@ -94,3 +95,16 @@ def test_reset_borra_los_tracks():
     a = t.update([(0, 0, 80, 80)], 0.0)[0]
     t.reset()
     assert t.update([(0, 0, 80, 80)], 0.1)[0].id != a.id
+
+
+def test_simulate_compara_con_y_sin_seguimiento():
+    det = [(i * 0.25, [(100, 100, 80, 80)]) for i in range(8)]
+    fn = lambda c, f: (None, 0.1)  # noqa: E731
+    assert simulate(det, 0.0, 0.42, 2, fn)["embeds"] == 8
+    con = simulate(det, 1.0, 0.42, 2, fn)
+    assert (con["embeds"], con["skipped"]) == (2, 6)
+
+
+def test_simulate_cuenta_fotogramas_confirmados():
+    det = [(i * 0.25, [(100, 100, 80, 80)]) for i in range(4)]
+    assert simulate(det, 1.0, 0.42, 2, lambda c, f: (META_A, 0.6))["confirmed_frames"] == 3
