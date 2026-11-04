@@ -46,10 +46,10 @@ def run_retention() -> dict[str, Any]:
             "DELETE FROM events WHERE occurred_at < ? AND (review_status IS NULL OR review_status != 'pendiente')",
             (ev_cut,)).rowcount
         expired = db.execute(
-            "SELECT id, uid FROM blacklist WHERE status = 'activo' AND expires_at <= ?", (now,)).fetchall()
+            "SELECT id, uid FROM persons WHERE status = 'activo' AND expires_at <= ?", (now,)).fetchall()
         for e in expired:
-            db.execute("UPDATE blacklist SET status = 'vencido', updated_at = ? WHERE id = ?", (now, e["id"]))
-            db.execute("INSERT INTO blacklist_history (entry_id, username, action, changes, at) VALUES (?,?,?,?,?)",
+            db.execute("UPDATE persons SET status = 'vencido', updated_at = ? WHERE id = ?", (now, e["id"]))
+            db.execute("INSERT INTO person_history (entry_id, username, action, changes, at) VALUES (?,?,?,?,?)",
                        (e["id"], "sistema", "vencido automáticamente", '{"status": ["activo", "vencido"]}', now))
         sessions = db.execute("DELETE FROM sessions WHERE expires_at < ?", (now,)).rowcount
         audit_deleted = db.execute("DELETE FROM audit_log WHERE at < ?", (_cutoff(cfg["retention_days_audit"]),)).rowcount

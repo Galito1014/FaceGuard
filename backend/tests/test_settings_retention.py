@@ -25,11 +25,11 @@ def test_retencion_borra_eventos_y_vence_registros(client):
     execute("INSERT INTO events (uid, occurred_at, camera, type, message) VALUES ('EV-OLD', ?, 'CAM', 'deteccion', 'viejo')", (old,))
     execute("INSERT INTO events (uid, occurred_at, camera, type, review_status, message) "
             "VALUES ('EV-OLD-PEND', ?, 'CAM', 'coincidencia', 'pendiente', 'pendiente vieja')", (old,))
-    eid = execute("INSERT INTO blacklist (uid, full_name, reason, legal_basis, alert_level, registered_at, expires_at, updated_at) "
+    eid = execute("INSERT INTO persons (uid, full_name, reason, legal_basis, alert_level, registered_at, expires_at, updated_at) "
                   "VALUES ('FG-EXP', 'Vencido', 'r', 'l', 'bajo', ?, ?, ?)", (old, past, old))
     r = client.post("/api/system/retention/run").json()
     assert r["events_deleted"] >= 1 and r["entries_expired"] >= 1
     assert query_one("SELECT id FROM events WHERE uid='EV-OLD'") is None
     assert query_one("SELECT id FROM events WHERE uid='EV-OLD-PEND'") is not None  # pendientes se conservan
-    assert query_one("SELECT status FROM blacklist WHERE id=?", (eid,))["status"] == "vencido"
-    client.delete(f"/api/blacklist/{eid}")
+    assert query_one("SELECT status FROM persons WHERE id=?", (eid,))["status"] == "vencido"
+    client.delete(f"/api/persons/{eid}")

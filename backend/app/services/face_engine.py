@@ -23,6 +23,8 @@ from app.config import config
 
 log = logging.getLogger("faceguard.engine")
 
+MODEL_VERSION = "sface_2021dec"  # se guarda con cada plantilla; otra versión no es comparable
+
 
 @dataclass
 class Face:
@@ -152,12 +154,17 @@ class FaceEngine:
 
 
 class Gallery:
-    """Plantillas descifradas de la lista de alerta, en memoria (solo activas)."""
+    """Plantillas descifradas de las personas activas, en memoria.
+
+    Cada persona aporta una fila por muestra. La comparación es un producto de
+    matrices, así que nunca se lee la base de datos en un fotograma.
+    """
 
     def __init__(self) -> None:
         self._ids: list[int] = []
         self._meta: list[dict[str, Any]] = []
         self._matrix = np.zeros((0, 128), np.float32)
+        self._restricted = np.zeros(0, dtype=bool)
         self._lock = threading.Lock()
         self.version = 0  # sube en cada carga; invalida el seguimiento de rostros
 
@@ -166,9 +173,11 @@ class Gallery:
         from app.core.database import query, utcnow
 
         rows = query(
-            """SELECT id, uid, full_name, alert_level, embedding_enc, is_simulated FROM blacklist
-               WHERE status = 'activo' AND expires_at > ? AND embedding_enc IS NOT NULL""",
-            (utcnow(),),
+            """SELECT p.id, p.uid, p.full_name, p.alert_level, p.classification, p.is_simulated, s.embedding_enc
+               FROM face_samples s JOIN persons p ON p.id = s.person_id
+               WHERE p.status = 'activo' AND p.expires_at > ? AND s.embedding_enc IS NOT NULL
+                 AND s.model_version = ?""",
+            (utcnow(), MODEL_VERSION),
         )
         vecs, meta = [], []
         for r in rows:
@@ -178,26 +187,57 @@ class Gallery:
                 log.warning("Plantilla ilegible para %s", r["uid"])
                 continue
             vecs.append(v / (np.linalg.norm(v) + 1e-9))
-            meta.append({"entry_id": r["id"], "uid": r["uid"], "name": r["full_name"],
-                         "level": r["alert_level"], "is_simulated": bool(r["is_simulated"])})
+            meta.append({"entry_id": r["id"], "uid": r["uid"], "name": r["full_name"], "level": r["alert_level"],
+                         "classification": r["classification"], "is_simulated": bool(r["is_simulated"])})
         with self._lock:
             self._meta = meta
             self._matrix = np.vstack(vecs).astype(np.float32) if vecs else np.zeros((0, 128), np.float32)
+            self._restricted = np.array([m["classification"] == "no_autorizada" for m in meta], dtype=bool)
             self.version += 1
-        log.info("Galería cargada: %d plantillas activas", len(meta))
+        log.info("Galería cargada: %d personas, %d plantillas", self.size, len(meta))
         return len(meta)
 
     @property
     def size(self) -> int:
+        """Personas activas en la galería."""
+        return len({m["entry_id"] for m in self._meta})
+
+    @property
+    def templates(self) -> int:
         return len(self._meta)
 
-    def best_match(self, vec: np.ndarray) -> tuple[dict[str, Any] | None, float]:
+    def best_match(self, vec: np.ndarray, threshold: float | None = None) -> tuple[dict[str, Any] | None, float]:
+        """Mejor coincidencia. Con `threshold`, la blacklist tiene prioridad.
+
+        Si un rostro supera el umbral con alguien de la blacklist, se devuelve
+        esa persona aunque una autorizada se parezca más: decide la revisión
+        humana, y un parecido no debe ocultar una posible coincidencia.
+        """
         with self._lock:
             if not self._meta:
                 return None, 0.0
             sims = self._matrix @ vec
+            if threshold is not None and self._restricted.any():
+                restricted = np.where(self._restricted)[0]
+                i = int(restricted[np.argmax(sims[restricted])])
+                if sims[i] >= threshold:
+                    return self._meta[i], float(sims[i])
             i = int(np.argmax(sims))
             return self._meta[i], float(sims[i])
+
+    def top_matches(self, vec: np.ndarray, threshold: float, limit: int = 3) -> list[dict[str, Any]]:
+        """Personas sobre el umbral, de mayor a menor, con su mejor muestra."""
+        with self._lock:
+            if not self._meta:
+                return []
+            sims = self._matrix @ vec
+            best: dict[int, dict[str, Any]] = {}
+            for i in np.argsort(-sims):
+                if sims[i] < threshold or len(best) >= limit:
+                    break
+                meta = self._meta[int(i)]
+                best.setdefault(meta["entry_id"], {**meta, "score": float(sims[i])})
+            return list(best.values())
 
 
 engine = FaceEngine()

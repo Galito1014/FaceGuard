@@ -19,8 +19,8 @@ TYPE_LABELS = {
 }
 REVIEW_LABELS = {
     "pendiente": "Pendiente de revisión",
-    "confirmada": "Coincidencia confirmada",
-    "falso_positivo": "Falso positivo",
+    "confirmada": "Confirmada por un operador",
+    "falso_positivo": "Descartada por un operador",
     "cerrada": "Cerrada",
 }
 

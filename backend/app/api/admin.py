@@ -112,8 +112,8 @@ def delete_user(user_id: int, request: Request, user: dict = Depends(require("us
         raise HTTPException(409, "Debe existir al menos un superadministrador activo.")
     # Se conserva la trazabilidad: los registros guardan el nombre del revisor.
     execute("UPDATE events SET reviewed_by = NULL WHERE reviewed_by = ?", (user_id,))
-    execute("UPDATE blacklist SET created_by = NULL WHERE created_by = ?", (user_id,))
-    execute("UPDATE blacklist_history SET user_id = NULL WHERE user_id = ?", (user_id,))
+    execute("UPDATE persons SET created_by = NULL WHERE created_by = ?", (user_id,))
+    execute("UPDATE person_history SET user_id = NULL WHERE user_id = ?", (user_id,))
     execute("DELETE FROM users WHERE id = ?", (user_id,))
     audit(user, "eliminar usuario", target=target["username"], ip=client_ip(request))
     return {"ok": True}

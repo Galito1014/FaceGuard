@@ -41,8 +41,10 @@ def summary(user: dict = Depends(require("dashboard.view"))):
     today = _local_midnight_utc()
     counts = query_one(
         """SELECT
-             (SELECT COUNT(*) FROM blacklist WHERE status='activo') AS blacklist_active,
-             (SELECT COUNT(*) FROM blacklist) AS blacklist_total,
+             (SELECT COUNT(*) FROM persons WHERE classification='no_autorizada' AND status='activo') AS blacklist_active,
+             (SELECT COUNT(*) FROM persons WHERE classification='no_autorizada') AS blacklist_total,
+             (SELECT COUNT(*) FROM persons) AS persons_total,
+             (SELECT COUNT(*) FROM persons WHERE classification='autorizada' AND status='activo') AS authorized_active,
              (SELECT COUNT(*) FROM events WHERE occurred_at >= :t) AS events_today,
              (SELECT COALESCE(SUM(faces_count),0) FROM events WHERE type='deteccion' AND occurred_at >= :t) AS faces_today,
              (SELECT COUNT(*) FROM events WHERE type='coincidencia' AND occurred_at >= :t) AS alerts_today,

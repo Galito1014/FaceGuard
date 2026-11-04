@@ -30,7 +30,7 @@ def env(monkeypatch):
     monkeypatch.setattr(engine, "ready", True)
     monkeypatch.setattr(engine, "detect", fake_detect)
     monkeypatch.setattr(engine, "embed", fake_embed)
-    monkeypatch.setattr(gallery, "best_match", lambda vec: state.best_match)
+    monkeypatch.setattr(gallery, "best_match", lambda vec, threshold=None: state.best_match)
     monkeypatch.setattr(pipeline, "_maybe_alert", lambda frame, face, cfg, simulated: state.alerts.append(face.match))
     monkeypatch.setattr(pipeline, "_log_detection", lambda *a, **k: None)
     pipeline.reset_tracking()
@@ -133,3 +133,18 @@ def test_status_incluye_contadores(env):
     run_cycles(env, env.cfg, 12)
     status = pipeline.status()
     assert status["embeds_computed"] == 9 and status["embeds_skipped"] == 3
+
+
+def test_persona_autorizada_no_alerta_ni_se_registra(env, monkeypatch):
+    env.best_match = ({**META, "classification": "autorizada"}, 0.7)
+    logged = []
+    monkeypatch.setattr(pipeline, "_log_detection", lambda n, best, sim, matched=0: logged.append(matched))
+    run_cycles(env, env.cfg, 4)
+    assert env.alerts == [] and logged[-1] == 0
+    assert pipeline._overlay[0]["label"].startswith("autorizada") and not pipeline._overlay[0]["match"]
+
+
+def test_blacklist_sigue_alertando_con_clasificacion(env):
+    env.best_match = ({**META, "classification": "no_autorizada"}, 0.7)
+    run_cycles(env, env.cfg, 3)
+    assert len(env.alerts) == 2

@@ -168,7 +168,7 @@ class Pipeline:
         for face, track in zip(faces, tracks):
             if self._tracker.needs_embedding(track, now, recheck_s):
                 face.embedding = engine.embed(small, face)
-                meta, sim = gallery.best_match(face.embedding)
+                meta, sim = gallery.best_match(face.embedding, cfg["match_threshold"])
                 self._tracker.record_result(track, meta, sim, cfg["match_threshold"], cfg["confirm_frames"], now)
                 self.embeds_computed += 1
             else:
@@ -176,14 +176,17 @@ class Pipeline:
             sim = track.sim
             face.best_score = sim
             is_candidate = track.streak > 0
-            confirmed = track.confirmed
+            authorized = track.confirmed and track.meta.get("classification") == "autorizada"
+            confirmed = track.confirmed and not authorized
             if confirmed:
                 face.match = {**track.meta, "score": sim}
                 self._maybe_alert(frame, face, cfg, simulated=False)
+            # Una persona autorizada solo se indica en vivo: su paso no se registra.
             label = (f"POSIBLE COINCIDENCIA {sim:.2f}" if confirmed else
+                     f"autorizada {sim:.2f}" if authorized else
                      f"verificando… {sim:.2f}" if is_candidate else
                      f"sin coincidencia {sim:.2f}" if gallery.size else f"rostro {face.score:.2f}")
-            overlay.append({"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed,
+            overlay.append({"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed and not authorized,
                             "label": label})
         self._publish_overlay(overlay)
         unmatched = [f.best_score for f in faces if not f.match]
@@ -209,7 +212,8 @@ class Pipeline:
 
     def simulate_alert(self, frame: np.ndarray | None = None, box: tuple[int, int, int, int] | None = None) -> dict[str, Any]:
         """Genera una alerta de prueba claramente marcada como simulada."""
-        entries = query("SELECT id, uid, full_name, alert_level FROM blacklist WHERE is_simulated = 1 AND status='activo'")
+        entries = query("SELECT id, uid, full_name, alert_level FROM persons WHERE is_simulated = 1 "
+                        "AND status='activo' AND classification='no_autorizada'")
         if entries:
             e = random.choice(entries)
             meta = {"entry_id": e["id"], "uid": e["uid"], "name": e["full_name"], "level": e["alert_level"]}
