@@ -15,7 +15,7 @@ type Resp = Paged<FGEvent> & { counts: { status: string; n: number }[] };
 const TABS = [
   { key: "pendiente", label: "Pendientes" },
   { key: "confirmada", label: "Confirmadas" },
-  { key: "falso_positivo", label: "Falsos positivos" },
+  { key: "falso_positivo", label: "Descartadas" },
   { key: "cerrada", label: "Cerradas" },
   { key: "", label: "Todas" },
 ];

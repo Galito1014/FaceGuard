@@ -14,6 +14,25 @@ interface RT {
 }
 const Ctx = createContext<RT>({ connected: false, status: null, lastAlert: null });
 
+/** Aviso breve. El navegador puede bloquearlo hasta que se use la página. */
+function playAlertTone() {
+  try {
+    const ctx = new AudioContext();
+    [0, 0.25].forEach((start) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = 880;
+      gain.gain.value = 0.15;
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + start);
+      osc.stop(ctx.currentTime + start + 0.15);
+    });
+    setTimeout(() => void ctx.close(), 1000);
+  } catch {
+    /* sin audio disponible: el aviso visual sigue funcionando */
+  }
+}
+
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { me } = useAuth();
   const qc = useQueryClient();
@@ -23,6 +42,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [lastAlert, setLastAlert] = useState<FGEvent | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const soundRef = useRef(true);
 
   useEffect(() => {
     if (!me || me.must_change_password) return;
@@ -45,6 +65,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         switch (type) {
           case "status":
             setStatus(data);
+            soundRef.current = (data as LiveStatus).alert_sound;
             break;
           case "camera":
             qc.invalidateQueries({ queryKey: ["camera"] });
@@ -58,6 +79,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             const ev = data as FGEvent;
             setLastAlert(ev);
             qc.invalidateQueries({ queryKey: ["alerts"] });
+            if (soundRef.current) playAlertTone();
             toast({
               kind: "alert",
               title: `${ev.is_simulated ? "[SIMULADO] " : ""}Posible coincidencia · nivel ${LEVEL_LABEL[ev.level ?? "bajo"]}`,

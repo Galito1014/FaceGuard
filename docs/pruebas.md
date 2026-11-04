@@ -104,6 +104,7 @@ Se recorrieron todas las pantallas con un navegador automatizado (Playwright/Chr
 
 > Usen **solo voluntarios del grupo que den su consentimiento** y bórrenlos de la lista al terminar.
 > Herramienta de apoyo: `python -m scripts.benchmark_engine referencia.jpg prueba1.jpg …`
+> Comparación según el número de registros: `python -m scripts.benchmark_gallery`
 > Comparación con y sin seguimiento de rostros: `python -m scripts.benchmark_engine --video ruta.mp4 referencia.jpg`
 
 | # | Situación | Resultado esperado | Resultado obtenido | Ajuste |

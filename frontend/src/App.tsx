@@ -7,7 +7,8 @@ import LoginPage from "./pages/Login";
 import ChangePasswordPage from "./pages/ChangePassword";
 import DashboardPage from "./pages/Dashboard";
 import MonitorPage from "./pages/Monitor";
-import BlacklistPage from "./pages/Blacklist";
+import PersonsPage from "./pages/Persons";
+import AnalysisPage from "./pages/Analysis";
 import AlertsPage from "./pages/Alerts";
 import EventsPage from "./pages/Events";
 import UsersPage from "./pages/Users";
@@ -37,7 +38,9 @@ export default function App() {
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="monitoreo" element={<Guard perm="camera.view"><MonitorPage /></Guard>} />
-          <Route path="lista" element={<Guard perm="blacklist.view"><BlacklistPage /></Guard>} />
+          <Route path="personas" element={<Guard perm="blacklist.view"><PersonsPage key="personas" /></Guard>} />
+          <Route path="lista" element={<Guard perm="blacklist.view"><PersonsPage key="lista" blacklistOnly /></Guard>} />
+          <Route path="analizar" element={<Guard perm="analysis.run"><AnalysisPage /></Guard>} />
           <Route path="alertas" element={<Guard perm="alerts.view"><AlertsPage /></Guard>} />
           <Route path="historial" element={<Guard perm="events.view"><EventsPage /></Guard>} />
           <Route path="usuarios" element={<Guard perm="users.manage"><UsersPage /></Guard>} />

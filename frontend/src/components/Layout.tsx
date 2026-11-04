@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import {
-  Bell, Cctv, FileClock, FlaskConical, KeyRound, LayoutDashboard, LogOut, Menu, ScrollText, Settings, ShieldAlert,
-  Siren, Thermometer, UserCog, Wifi, WifiOff, X,
+  Bell, Cctv, FileClock, ScanSearch, FlaskConical, KeyRound, LayoutDashboard, LogOut, Menu, ScrollText, Settings, ShieldAlert,
+  Siren, Thermometer, UserCog, Users, Wifi, WifiOff, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/realtime";
@@ -13,7 +13,9 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, perm: "dashboard.view", end: true },
   { to: "/monitoreo", label: "Monitoreo en vivo", icon: Cctv, perm: "camera.view" },
   { to: "/alertas", label: "Alertas", icon: Siren, perm: "alerts.view", badge: true },
-  { to: "/lista", label: "Lista de alerta", icon: ShieldAlert, perm: "blacklist.view" },
+  { to: "/personas", label: "Personas registradas", icon: Users, perm: "blacklist.view" },
+  { to: "/lista", label: "Blacklist", icon: ShieldAlert, perm: "blacklist.view" },
+  { to: "/analizar", label: "Analizar fotografía", icon: ScanSearch, perm: "analysis.run" },
   { to: "/historial", label: "Historial", icon: FileClock, perm: "events.view" },
   { section: "Administración" },
   { to: "/usuarios", label: "Usuarios", icon: UserCog, perm: "users.manage" },

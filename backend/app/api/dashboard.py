@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 
+from app.config import config
 from app.core.database import query, query_one
 from app.core.security import require
 from app.services import system_monitor
@@ -33,6 +34,7 @@ def live_status() -> dict:
         "gpio": gpio.status(),
         "pending_alerts": pending,
         "demo_mode": settings.get("demo_mode"),
+        "alert_sound": settings.get("alert_sound"),
     }
 
 
@@ -53,7 +55,8 @@ def summary(user: dict = Depends(require("dashboard.view"))):
         {"t": today},
     )
     recent = query("SELECT * FROM events WHERE type IN ('deteccion','coincidencia','captura') ORDER BY occurred_at DESC LIMIT 8")
-    return {**counts, **live_status(), "recent": [serialize_event(r) for r in recent]}
+    database = {"ok": True, "size_kb": round(config.db_path.stat().st_size / 1024)}
+    return {**counts, **live_status(), "database": database, "recent": [serialize_event(r) for r in recent]}
 
 
 @router.get("/activity")

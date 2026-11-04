@@ -67,7 +67,7 @@ FaceGuard AI convierte la Raspberry Pi en un **asistente para el guardia**, no e
 |---|---|
 | **Dashboard** | Estado de la Pi (CPU, RAM, temperatura, encendido), cámara, motor facial, GPIO, contadores, gráficas de 24 h y 7 días, últimas detecciones; todo se actualiza solo |
 | **Monitoreo en vivo** | Video con recuadros (verde, ámbar, rojo), FPS, latencia, iniciar/detener, resolución, capturas autorizadas con motivo |
-| **Lista de alerta** | Alta, edición y baja con foto, **validación automática de la calidad de la foto**, motivo y base legal obligatorios, nivel, vencimiento, historial de cambios, búsqueda y filtros |
+| **Personas y blacklist** | Personas autorizadas y no autorizadas con varias fotos, aviso de posibles duplicados, análisis de fotografías y alertas. Alta, edición y baja con foto, **validación automática de la calidad de la foto**, motivo y base legal obligatorios, nivel, vencimiento, historial de cambios, búsqueda y filtros |
 | **Alertas** | Bandeja por estado, revisión lado a lado, observaciones obligatorias, alertas de prueba |
 | **Historial** | Filtros por fecha, tipo, nivel, estado y origen; vista detallada; exportación a **PDF y CSV** |
 | **Usuarios** | 4 roles: superadministrador, administrador, operador y auditor |
@@ -337,7 +337,7 @@ Invoke-RestMethod http://localhost:8000/api/health       # → status: ok
 # b) OpenCV y la cámara (detenga FaceGuard antes, porque la cámara solo admite un programa)
 python -c "import cv2; c=cv2.VideoCapture(0, cv2.CAP_DSHOW); print('cámara abierta:', c.isOpened(), '| lee imagen:', c.read()[0]); c.release()"
 
-# c) Pruebas automáticas (24 pruebas)
+# c) Pruebas automáticas
 pip install -r requirements-dev.txt scikit-image
 pytest -v
 ```
@@ -348,7 +348,7 @@ En el panel web:
 |---|---|
 | **Dashboard** | Motor facial activo, cámara conectada, insignia **“GPIO simulado”** (normal: una PC no tiene GPIO) |
 | **Monitoreo en vivo** | Video con recuadros; *Cámara* muestra `Conectada (Cámara 0 · dshow)` |
-| **Reconocimiento** | Registre en *Lista de alerta* una foto suya (con consentimiento), póngase frente a la cámara y verifique que aparece una alerta “Pendiente de revisión” |
+| **Reconocimiento** | Registre en *Personas registradas* una foto suya (con consentimiento), póngase frente a la cámara y verifique que aparece una alerta “Pendiente de revisión” |
 | **LED/buzzer** | *Configuración → Alertas y GPIO → Probar* responde “Modo simulado”, y el log (*Configuración → Sistema*) muestra `Alarma nivel alto … [simulado]` |
 | **Exportación** | *Historial → PDF / CSV* descarga los archivos |
 | **Sin cámara** | *Configuración → Demostración* → video y detecciones simuladas |
@@ -552,6 +552,9 @@ Se leen del entorno y de `backend/.env` (las del entorno tienen prioridad). El s
 | Variable | Por defecto | Descripción |
 |---|---|---|
 | `FACEGUARD_DATA_DIR` | `backend/data` | Base de datos, clave de cifrado, fotos y registros |
+| `FACEGUARD_DB_PATH` | `<datos>/faceguard.db` | Otra ruta para la base de datos |
+| `FACEGUARD_MEDIA_DIR` | `<datos>/media` | Otra carpeta para fotografías (`photos/`) e imágenes de alertas (`snapshots/`) |
+| `FACEGUARD_LOG_LEVEL` | `INFO` | Nivel de registro: `DEBUG`, `INFO`, `WARNING` o `ERROR` |
 | `FACEGUARD_MODELS_DIR` | `backend/models` | Modelos ONNX |
 | `FACEGUARD_FRONTEND_DIST` | `frontend/dist` | Frontend compilado |
 | `FACEGUARD_ADMIN_PASSWORD` | aleatoria | Contraseña de `admin` en el primer arranque (`backend/.env.example`: `FaceGuard2026`) |
@@ -571,8 +574,8 @@ La documentación interactiva de la API está en `http://<host>:8000/api/docs`.
 
 ## 7. Uso del sistema
 
-1. **Registrar a una persona** (administrador): *Lista de alerta → Nuevo registro*. Suba una foto frontal; el sistema verifica que tenga un solo rostro, el tamaño, la nitidez y la iluminación. Complete el motivo, la base legal, el nivel y la fecha de vencimiento, y confirme.
-2. **Monitorear** (operador): *Monitoreo en vivo*. Recuadro verde = sin coincidencia; ámbar = verificando; rojo = posible coincidencia.
+1. **Registrar a una persona** (administrador): *Personas registradas → Añadir persona*. Elija la clasificación y suba una foto frontal; el sistema verifica que tenga un solo rostro, el tamaño, la nitidez y la iluminación. Complete el motivo, la base legal, el nivel y la fecha de vencimiento, y confirme.
+2. **Monitorear** (operador): *Monitoreo en vivo*. Recuadro verde = sin coincidencia o persona autorizada; ámbar = verificando; rojo = posible coincidencia.
 3. **Revisar una alerta** (operador): llega una notificación y suena el buzzer → *Revisar alerta*. Compare las imágenes, verifique en persona, escriba las observaciones y marque *Confirmar coincidencia*, *Falso positivo* o *Cerrar*.
 4. **Consultar y exportar** (administrador o auditor): *Historial*, con filtros y exportación a PDF o CSV.
 
@@ -580,6 +583,63 @@ La documentación interactiva de la API está en `http://<host>:8000/api/docs`.
 |---|---|
 | ![Registro con validación de calidad](docs/img/04-registro-calidad.png) | ![Revisión de alerta](docs/img/07-revision-alerta.png) |
 | ![Historial](docs/img/08-historial.png) | ![Modo demostración](docs/img/12-modo-demostracion.png) |
+
+### Personas, blacklist y análisis de fotografías
+
+| Clasificación | Qué significa | Qué pasa frente a la cámara |
+|---|---|---|
+| **No autorizada** (blacklist) | Requiere motivo, base legal, nivel y vencimiento | Genera una alerta pendiente de revisión |
+| **Autorizada** | Requiere confirmar su consentimiento y una fecha de vencimiento | El recuadro indica "autorizada". **Su paso no se guarda** |
+| **Desconocida** | Rostro sin coincidencia fiable. No es un registro | Nunca se clasifica sola como no autorizada |
+
+- **Varias fotos:** en el detalle de una persona, *Fotografías → Añadir*. Varias fotos con distintos ángulos mejoran el reconocimiento, y cada una guarda la versión del modelo que la generó.
+- **Duplicados:** si una foto se parece a otra persona registrada, el sistema lo avisa y exige una decisión del administrador.
+- **Prioridad de la blacklist:** si un rostro supera el umbral con alguien de la blacklist, se genera la alerta aunque una persona autorizada se parezca más. Decide la revisión humana.
+- **Analizar fotografía:** muestra un resultado por rostro: posible coincidencia, autorizada, desconocida o calidad insuficiente. La foto no se guarda y no registra a nadie. Si hay una posible coincidencia con la blacklist, se conserva solo el recorte del rostro en una alerta pendiente de revisión.
+- **Similitud:** se muestra como similitud coseno de SFace, por ejemplo `0.612`. No es un porcentaje de certeza.
+
+### Base de datos
+
+El esquema se crea y se actualiza solo al iniciar, con las migraciones de `backend/migrations/`. La migración 002 convierte la lista de alerta existente, conservando registros, fotos y alertas.
+
+| Tabla | Contenido |
+|---|---|
+| `persons` | Datos, clasificación, estado y vencimiento de cada persona |
+| `face_samples` | Foto y plantilla cifradas, versión del modelo y foto principal |
+| `person_history` | Cambios de cada registro |
+| `events` | Alertas (`type = 'coincidencia'`) y demás eventos, con su estado de revisión |
+| `audit_log` | Acciones administrativas |
+
+SQLite no cifra el archivo. Fotos, plantillas e imágenes de alertas se cifran por separado con Fernet. Nombres y motivos no van cifrados, así que proteja la carpeta de datos y, en la Raspberry Pi, considere cifrar el disco completo.
+
+### Respaldo y restauración
+
+Desde `backend/`, con el entorno virtual activo:
+
+```
+python -m scripts.manage backup                 # guarda en <datos>/backups
+python -m scripts.manage backup D:\respaldos    # otra carpeta
+python -m scripts.manage backup --with-key      # incluye la clave de cifrado
+python -m scripts.manage restore respaldo.zip   # con FaceGuard detenido
+```
+
+El respaldo **no incluye la clave de cifrado** por defecto: guarde aparte una copia de `<datos>/secret/fernet.key`, porque sin ella las fotos y plantillas no se pueden leer. Con `--with-key`, cualquiera que obtenga el archivo podrá leerlas. La restauración valida el respaldo antes de tocar nada y deja los datos anteriores en `<datos>/pre-restore-<fecha>`.
+
+### Rendimiento
+
+- **Comparaciones:** en memoria con NumPy. Se miden con `python -m scripts.benchmark_gallery`. Con 2 núcleos en la nube, sin la Raspberry Pi: 0,02 ms con 1.000 plantillas y 2,4 ms con 50.000, así que no hace falta una búsqueda vectorial para este tamaño.
+- **Si la Raspberry Pi va lenta:** suba *Frecuencia de procesamiento* a 400–500 ms y baje *Ancho de análisis* a 320–400 px. Un rostro pequeño puede dejar de detectarse.
+- **Seguimiento de rostros:** compare con y sin él con `python -m scripts.benchmark_engine --video ruta.mp4 referencia.jpg`.
+
+### Errores comunes
+
+| Mensaje | Qué hacer |
+|---|---|
+| "No hay espacio de almacenamiento disponible" | Libere espacio o reduzca los días de conservación |
+| "Sin permisos de escritura" | Revise los permisos de la carpeta de datos |
+| "La base de datos no está disponible" | Espere unos segundos e intente de nuevo. Si continúa, reinicie y consulte el registro |
+| "La fotografía se parece a una persona ya registrada" | Abra ese registro. Si es otra persona, marque que la revisó |
+| "La clave de cifrado de este equipo no coincide" | Copie la clave original o use un respaldo creado con `--with-key` |
 
 ### Roles y permisos
 
@@ -605,7 +665,7 @@ La evidencia completa está en **[docs/pruebas.md](docs/pruebas.md)**. Resumen:
 | **B. Persona registrada** | 1 alerta, LED + buzzer, notificación | Similitud 0,95; **1 sola alerta** aunque la persona apareció varias veces; alarma activada | El primer intento falló porque el rostro era muy pequeño (40 px): se documentó la distancia de la cámara y el tamaño mínimo es configurable |
 | **C. Robustez** | La misma persona coincide; otras no | Variaciones (luz, giro, ruido, desenfoque): 0,83–0,96; otras personas: −0,05 y 0,13 | Umbral fijado en 0,42 |
 | **D. Cámara desconectada** | No se cae; reintenta | Reintentos progresivos; el panel muestra “Sin señal” | Evento de sistema con un límite de 1 cada 30 s |
-| **Automáticas** | — | **24/24 aprobadas** (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
+| **Automáticas** | — | **94/94 aprobadas** en Linux con Python 3.13 (`pytest`; 7 de ellas verifican la compatibilidad Windows/Raspberry Pi) | — |
 
 Para ejecutar las pruebas automáticas: `cd backend && pip install -r requirements-dev.txt scikit-image && pytest -v`
 
@@ -627,7 +687,7 @@ Los riesgos y las medidas están detallados en **[docs/seguridad-privacidad.md](
 
 Partimos de los ejemplos de OpenCV Zoo, que solo comparan dos imágenes, y de los tutoriales típicos de “reconocimiento facial con Raspberry Pi”, que abren una puerta o muestran un nombre. Lo que **diseñamos y cambiamos**:
 
-1. **Otro propósito:** de “identificar a todos” a una **lista de alerta acotada**, con base legal obligatoria, vencimiento y revisión humana. El sistema no identifica a los residentes ni a los visitantes comunes.
+1. **Otro propósito:** de “identificar a todos” a una **lista de alerta acotada**, con base legal obligatoria, vencimiento y revisión humana. Solo se reconoce a quienes estén registrados, y el paso de una persona autorizada no se guarda.
 2. **Menos falsos positivos:** confirmación temporal en N fotogramas, umbral calibrado con pruebas, tamaño mínimo de rostro y **validación automática de la calidad de la foto** al registrar.
 3. **Anti-duplicados** por persona y agrupación de detecciones, para no saturar al guardia ni la base de datos.
 4. **Alarma física graduada por nivel** (LED rápido o lento, buzzer desde el nivel configurado), con un botón de prueba y un modo simulado si no hay GPIO.
@@ -649,7 +709,7 @@ faceguard-ai/
 │   │   └── services/            # cámara, motor facial, pipeline, GPIO, tiempo real, retención, demo
 │   ├── migrations/              # esquema SQL versionado
 │   ├── scripts/                 # run.py (inicio), descarga de modelos (.py/.sh), gestión de usuarios, benchmark
-│   ├── tests/                   # 24 pruebas automáticas (pytest)
+│   ├── tests/                   # pruebas automáticas (pytest)
 │   ├── .env.example             # configuración para ejecución manual (Windows / Pi)
 │   └── requirements.txt         # dependencias únicas para Windows y Raspberry Pi
 ├── frontend/                    # React + TypeScript + Tailwind (se compila a frontend/dist)

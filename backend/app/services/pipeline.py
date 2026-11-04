@@ -310,6 +310,7 @@ class Pipeline:
             "engine_ready": engine.ready,
             "models": "YuNet 2023mar + SFace 2021dec (OpenCV DNN)",
             "gallery_size": gallery.size,
+            "templates": gallery.templates,
             "processing_fps": self.processing_fps if self.running else 0,
             "latency_ms": self.latency_ms,
             "faces_now": self.faces_now,

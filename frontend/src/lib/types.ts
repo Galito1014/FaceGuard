@@ -48,8 +48,57 @@ export interface EventDetail extends FGEvent {
   entry?: { uid: string; full_name: string; alert_level: Level; reason: string; status: string; has_photo: boolean };
 }
 
+export type Classification = "autorizada" | "no_autorizada";
+
+export interface DuplicateMatch {
+  entry_id: number;
+  uid: string;
+  full_name: string;
+  classification: Classification;
+  status: string;
+  score: number;
+}
+
+export interface FaceSample {
+  id: number;
+  is_primary: boolean;
+  model_version: string | null;
+  quality: Record<string, number | boolean> | null;
+  created_at: string;
+}
+
+export interface AnalysisMatch {
+  entry_id: number | null;
+  uid: string;
+  name: string;
+  level: Level;
+  classification: Classification;
+  score: number;
+}
+
+export interface AnalysisFace {
+  box: [number, number, number, number];
+  detection_score: number;
+  result: "posible_no_autorizada" | "autorizada" | "desconocida" | "calidad_insuficiente";
+  quality_issues: string[];
+  match: AnalysisMatch | null;
+  score: number | null;
+  ambiguous: boolean;
+  alternatives: AnalysisMatch[];
+  alert?: { id: number; uid: string };
+}
+
+export interface AnalysisResult {
+  image: { width: number; height: number };
+  threshold: number;
+  faces: AnalysisFace[];
+}
+
 export interface BlacklistEntry {
   id: number;
+  classification: Classification;
+  sample_count: number;
+  template_count: number;
   uid: string;
   full_name: string;
   info: string;
@@ -69,6 +118,7 @@ export interface BlacklistEntry {
 }
 
 export interface BlacklistDetail extends BlacklistEntry {
+  samples: FaceSample[];
   history: { username: string; action: string; changes: string; at: string }[];
   alerts: { uid: string; occurred_at: string; score: number; review_status: ReviewStatus }[];
 }
@@ -76,6 +126,7 @@ export interface BlacklistDetail extends BlacklistEntry {
 export interface QualityReport {
   ok: boolean;
   checks: { name: string; ok: boolean; detail: string }[];
+  duplicates?: DuplicateMatch[];
   metrics?: Record<string, number>;
 }
 
@@ -113,6 +164,9 @@ export interface EngineStatus {
   engine_ready: boolean;
   models: string;
   gallery_size: number;
+  templates: number;
+  embeds_computed: number;
+  embeds_skipped: number;
   processing_fps: number;
   latency_ms: number;
   faces_now: number;
@@ -136,11 +190,15 @@ export interface LiveStatus {
   gpio: GpioStatus;
   pending_alerts: number;
   demo_mode: boolean;
+  alert_sound: boolean;
 }
 
 export interface Summary extends LiveStatus {
   blacklist_active: number;
   blacklist_total: number;
+  persons_total: number;
+  authorized_active: number;
+  database: { ok: boolean; size_kb: number };
   events_today: number;
   faces_today: number;
   alerts_today: number;
@@ -170,6 +228,7 @@ export interface Settings {
   camera_height: number;
   monitoring_enabled: boolean;
   alerts_enabled: boolean;
+  alert_sound: boolean;
   gpio_enabled: boolean;
   led_pin: number;
   buzzer_pin: number;

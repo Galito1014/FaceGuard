@@ -26,13 +26,14 @@ export function fmtUptime(s: number): string {
   return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
 }
 
-export const fmtScore = (v?: number | null) => (v === null || v === undefined ? "—" : `${(v * 100).toFixed(1)} %`);
+/** Similitud coseno de SFace. No es una probabilidad: mostrarla como porcentaje exigiría calibrarla. */
+export const fmtScore = (v?: number | null) => (v === null || v === undefined ? "—" : v.toFixed(3));
 
 export const LEVEL_LABEL: Record<Level, string> = { bajo: "Bajo", medio: "Medio", alto: "Alto" };
 export const REVIEW_LABEL: Record<ReviewStatus, string> = {
   pendiente: "Pendiente de revisión",
   confirmada: "Confirmada por operador",
-  falso_positivo: "Falso positivo",
+  falso_positivo: "Descartada por operador",
   cerrada: "Cerrada",
 };
 
