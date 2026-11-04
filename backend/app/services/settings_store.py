@@ -15,6 +15,7 @@ DEFAULTS: dict[str, Any] = {
     "confirm_frames": 2,             # fotogramas consecutivos para confirmar coincidencia
     "process_interval_ms": 250,      # frecuencia de procesamiento (4 fps)
     "process_width": 480,            # ancho de la imagen que se analiza
+    "recheck_interval_ms": 1000,     # revisión periódica de cada rostro (0 = en cada ciclo)
     "dedup_seconds": 60,             # sin alertas repetidas de la misma persona
     "detection_log_seconds": 30,     # agrupa detecciones sin coincidencia
     # Cámara
@@ -47,6 +48,7 @@ RULES: dict[str, Any] = {
     "confirm_frames": (int, 1, 10),
     "process_interval_ms": (int, 100, 5000),
     "process_width": (int, 240, 1280),
+    "recheck_interval_ms": (int, 0, 10000),
     "dedup_seconds": (int, 5, 3600),
     "detection_log_seconds": (int, 5, 3600),
     "camera_index": (int, 0, 9),

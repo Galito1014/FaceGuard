@@ -2,12 +2,14 @@
 
 Corre en su propio hilo, separado de la captura. En cada ciclo toma el
 fotograma más reciente, lo reduce, detecta rostros, calcula la plantilla de
-cada uno y la compara con la galería (lista de alerta).
+cada uno cuando hace falta y la compara con la galería (lista de alerta).
+El seguimiento de rostros (tracker.py) evita repetir SFace, el paso más
+costoso, con una persona que ya se analizó hace poco.
 
 Medidas contra falsos positivos y alertas repetidas:
   1. Umbral de similitud configurable (match_threshold).
-  2. Confirmación temporal: la misma persona debe coincidir en N ciclos
-     consecutivos (confirm_frames) antes de generar la alerta.
+  2. Confirmación temporal: el mismo rostro debe coincidir con la misma persona
+     en N análisis consecutivos (confirm_frames) antes de generar la alerta.
   3. Tamaño mínimo de rostro y confianza mínima del detector.
   4. Deduplicación: una persona no genera otra alerta durante dedup_seconds.
   5. Toda coincidencia queda "Pendiente de revisión" hasta que un operador
@@ -34,6 +36,7 @@ from app.services.face_engine import Face, engine, gallery
 from app.services.gpio import gpio
 from app.services.realtime import hub
 from app.services.settings_store import settings
+from app.services.tracker import FaceTracker
 
 log = logging.getLogger("faceguard.pipeline")
 
@@ -49,7 +52,8 @@ class Pipeline:
         self._lock = threading.Lock()
         self._overlay: list[dict[str, Any]] = []
         self._overlay_ts = 0.0
-        self._streak: dict[int, int] = {}
+        self._tracker = FaceTracker()
+        self._gallery_version = gallery.version
         self._last_alert: dict[int, float] = {}
         self._last_detection_log = 0.0
         self._next_demo_match = time.time() + 20
@@ -59,6 +63,8 @@ class Pipeline:
         self.faces_now = 0
         self.frames_processed = 0
         self.alerts_generated = 0
+        self.embeds_computed = 0
+        self.embeds_skipped = 0
         self.error: str | None = None
 
     # ------------------------------------------------------------- control
@@ -80,7 +86,7 @@ class Pipeline:
             self._overlay = []
 
     def reset_tracking(self) -> None:
-        self._streak.clear()
+        self._tracker.reset()
         self._last_alert.clear()
 
     # ------------------------------------------------------------ superposición
@@ -145,36 +151,40 @@ class Pipeline:
             self._stop.wait(max(0.0, interval - (time.time() - t0)))
 
     # ---------------------------------------------------------- modo real
-    def _process_real(self, frame: np.ndarray, cfg: dict[str, Any]) -> None:
+    def _process_real(self, frame: np.ndarray, cfg: dict[str, Any], now: float | None = None) -> None:
         if not engine.ready:
             self.error = engine.error
             self._stop.wait(1)
             return
+        now = time.time() if now is None else now
+        if gallery.version != self._gallery_version:
+            # La lista cambió: se vuelve a analizar a quienes ya estaban en cuadro.
+            self._gallery_version = gallery.version
+            self._tracker.reset()
         faces, small, _ = engine.detect(frame, cfg["process_width"], cfg["detection_confidence"], cfg["min_face_size"])
-        overlay, seen = [], set()
-        for face in faces:
-            face.embedding = engine.embed(small, face)
-            meta, sim = gallery.best_match(face.embedding)
+        tracks = self._tracker.update([f.box for f in faces], now)
+        recheck_s = cfg["recheck_interval_ms"] / 1000
+        overlay = []
+        for face, track in zip(faces, tracks):
+            if self._tracker.needs_embedding(track, now, recheck_s):
+                face.embedding = engine.embed(small, face)
+                meta, sim = gallery.best_match(face.embedding)
+                self._tracker.record_result(track, meta, sim, cfg["match_threshold"], cfg["confirm_frames"], now)
+                self.embeds_computed += 1
+            else:
+                self.embeds_skipped += 1
+            sim = track.sim
             face.best_score = sim
-            is_candidate = meta is not None and sim >= cfg["match_threshold"]
-            confirmed = False
-            if is_candidate:
-                eid = meta["entry_id"]
-                seen.add(eid)
-                self._streak[eid] = self._streak.get(eid, 0) + 1
-                if self._streak[eid] >= cfg["confirm_frames"]:
-                    confirmed = True
-                    face.match = {**meta, "score": sim}
-                    self._maybe_alert(frame, face, cfg, simulated=False)
+            is_candidate = track.streak > 0
+            confirmed = track.confirmed
+            if confirmed:
+                face.match = {**track.meta, "score": sim}
+                self._maybe_alert(frame, face, cfg, simulated=False)
             label = (f"POSIBLE COINCIDENCIA {sim:.2f}" if confirmed else
                      f"verificando… {sim:.2f}" if is_candidate else
                      f"sin coincidencia {sim:.2f}" if gallery.size else f"rostro {face.score:.2f}")
             overlay.append({"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed,
                             "label": label})
-        # reinicia la racha de quienes ya no aparecen
-        for eid in list(self._streak):
-            if eid not in seen:
-                self._streak.pop(eid)
         self._publish_overlay(overlay)
         unmatched = [f.best_score for f in faces if not f.match]
         best = max(unmatched, default=None) if gallery.size else None
@@ -301,6 +311,8 @@ class Pipeline:
             "faces_now": self.faces_now,
             "frames_processed": self.frames_processed,
             "alerts_generated": self.alerts_generated,
+            "embeds_computed": self.embeds_computed,
+            "embeds_skipped": self.embeds_skipped,
             "ws_clients": hub.count,
         }
 
