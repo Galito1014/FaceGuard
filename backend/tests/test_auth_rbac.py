@@ -22,7 +22,7 @@ def test_bloqueo_opcional(client, monkeypatch):
 
 def test_rutas_privadas_sin_sesion(client):
     c = TestClient(app)
-    for path in ("/api/dashboard/summary", "/api/blacklist", "/api/events", "/api/users", "/api/camera/stream"):
+    for path in ("/api/dashboard/summary", "/api/persons", "/api/events", "/api/users", "/api/camera/stream"):
         assert c.get(path).status_code == 401
 
 
@@ -45,14 +45,14 @@ def test_permisos_por_rol(client):
     # Auditor: consulta, sin modificar
     assert auditor.get("/api/events").status_code == 200
     assert auditor.get("/api/audit").status_code == 200
-    assert auditor.get("/api/blacklist").status_code == 200
-    assert auditor.delete("/api/blacklist/1").status_code == 403
+    assert auditor.get("/api/persons").status_code == 200
+    assert auditor.delete("/api/persons/1").status_code == 403
     assert auditor.get("/api/camera/status").status_code == 403
     assert auditor.post("/api/alerts/1/review", json={"status": "cerrada"}).status_code == 403
     # Operador: monitoreo y alertas, sin lista ni configuración
     assert operador.get("/api/camera/status").status_code == 200
     assert operador.get("/api/alerts").status_code == 200
-    assert operador.get("/api/blacklist").status_code == 403
+    assert operador.get("/api/persons").status_code == 403
     assert operador.put("/api/settings", json={"match_threshold": 0.5}).status_code == 403
     assert operador.get("/api/users").status_code == 403
 

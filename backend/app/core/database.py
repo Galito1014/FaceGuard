@@ -7,6 +7,7 @@ actualización basta con agregar `002_algo.sql`.
 from __future__ import annotations
 
 import logging
+import os
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -68,6 +69,18 @@ def execute(sql: str, params: tuple | dict = ()) -> int:
         return cur.lastrowid
 
 
+def _safety_copy(conn: sqlite3.Connection, db_path: Path, version: str) -> None:
+    """Copia la base de datos antes de cambiar su esquema."""
+    target = Path(f"{db_path}.antes-de-{version}")
+    copy = sqlite3.connect(target)
+    try:
+        conn.backup(copy)
+    finally:
+        copy.close()
+    os.chmod(target, 0o600)
+    log.info("Copia de seguridad previa a la migración: %s", target)
+
+
 def run_migrations(db_path: Path | None = None) -> list[str]:
     applied: list[str] = []
     conn = _connect(db_path)
@@ -76,14 +89,21 @@ def run_migrations(db_path: Path | None = None) -> list[str]:
             "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
         )
         done = {r[0] for r in conn.execute("SELECT version FROM schema_migrations")}
-        for file in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        pending = [f for f in sorted(MIGRATIONS_DIR.glob("*.sql")) if f.stem not in done]
+        if pending and done:
+            _safety_copy(conn, Path(db_path or config.db_path), pending[0].stem)
+        for file in pending:
             version = file.stem
-            if version in done:
-                continue
             log.info("Aplicando migración %s", version)
-            conn.executescript(file.read_text(encoding="utf-8"))
-            conn.execute("INSERT INTO schema_migrations VALUES (?, ?)", (version, utcnow()))
-            conn.commit()
+            # El esquema y su registro van juntos: un corte de luz deja o las
+            # dos cosas o ninguna, y el siguiente arranque continúa sin error.
+            script = f"BEGIN;\n{file.read_text(encoding='utf-8')}\n;INSERT INTO schema_migrations VALUES ('{version}', '{utcnow()}');\nCOMMIT;"
+            try:
+                conn.executescript(script)
+            except sqlite3.Error:
+                if conn.in_transaction:
+                    conn.rollback()
+                raise
             applied.append(version)
     finally:
         conn.close()

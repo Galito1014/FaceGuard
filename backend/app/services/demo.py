@@ -55,14 +55,16 @@ def seed(user: dict, days: int = 7) -> dict[str, int]:
             exp = (now + timedelta(days=random.choice([-3, 30, 90, 180, 365]))).replace(microsecond=0)
             status = "activo" if exp > now else "vencido"
             cur = db.execute(
-                """INSERT INTO blacklist (uid, full_name, info, reason, legal_basis, alert_level, registered_at, expires_at,
-                     status, notes, photo_file, embedding_enc, photo_quality, created_by, updated_at, is_simulated)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,?,?,?,1)""",
+                """INSERT INTO persons (uid, full_name, info, reason, legal_basis, alert_level, registered_at, expires_at,
+                     status, notes, created_by, updated_at, is_simulated)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)""",
                 (uid, name, "Registro ficticio para demostración", reason,
                  "Documento de autorización ficticio N.º DEMO-" + str(100 + i), level, reg.isoformat(), exp.isoformat(),
-                 status, "Dato simulado — no corresponde a una persona real", photo,
-                 json.dumps({"ok": True, "simulated": True}), user["id"], utcnow()))
-            db.execute("INSERT INTO blacklist_history (entry_id, user_id, username, action, changes, at) VALUES (?,?,?,?,?,?)",
+                 status, "Dato simulado — no corresponde a una persona real", user["id"], utcnow()))
+            db.execute("""INSERT INTO face_samples (person_id, photo_file, quality, is_primary, created_by, created_at)
+                          VALUES (?,?,?,1,?,?)""",
+                       (cur.lastrowid, photo, json.dumps({"ok": True, "simulated": True}), user["id"], utcnow()))
+            db.execute("INSERT INTO person_history (entry_id, user_id, username, action, changes, at) VALUES (?,?,?,?,?,?)",
                        (cur.lastrowid, user["id"], user["username"], "creado (demo)", "{}", utcnow()))
             created.append((cur.lastrowid, uid, name, level))
 
@@ -102,11 +104,12 @@ def seed(user: dict, days: int = 7) -> dict[str, int]:
 
 
 def clear() -> dict[str, int]:
-    files = [r["photo_file"] for r in query("SELECT photo_file FROM blacklist WHERE is_simulated = 1")]
+    files = [r["photo_file"] for r in query(
+        "SELECT s.photo_file FROM face_samples s JOIN persons p ON p.id = s.person_id WHERE p.is_simulated = 1")]
     files += [r["snapshot_file"] for r in query("SELECT snapshot_file FROM events WHERE is_simulated = 1")]
     with get_db() as db:
         ev = db.execute("DELETE FROM events WHERE is_simulated = 1").rowcount
-        bl = db.execute("DELETE FROM blacklist WHERE is_simulated = 1").rowcount
+        bl = db.execute("DELETE FROM persons WHERE is_simulated = 1").rowcount
     for f in files:
         secure_delete(f)
     return {"blacklist": bl, "events": ev}

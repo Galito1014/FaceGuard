@@ -33,7 +33,7 @@ function ProtectedImage({ src, label }: { src: string; label: string }) {
 
 const ACTIONS: { status: ReviewStatus; label: string; icon: React.ElementType; variant: "danger" | "success" | "secondary" }[] = [
   { status: "confirmada", label: "Confirmar coincidencia", icon: ShieldCheck, variant: "danger" },
-  { status: "falso_positivo", label: "Falso positivo", icon: ShieldX, variant: "success" },
+  { status: "falso_positivo", label: "Descartar", icon: ShieldX, variant: "success" },
   { status: "cerrada", label: "Cerrar", icon: XCircle, variant: "secondary" },
 ];
 

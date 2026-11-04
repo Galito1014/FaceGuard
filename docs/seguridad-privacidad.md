@@ -3,7 +3,7 @@
 Los datos biométricos (fotografías y plantillas faciales) son **datos personales sensibles**. Un error del sistema puede afectar a una persona inocente. Por eso el diseño parte de tres principios:
 
 1. **El sistema solo sugiere y una persona decide.** Toda coincidencia es preliminar y queda “Pendiente de revisión”. FaceGuard no bloquea puertas ni toma acciones contra nadie.
-2. **Mínimo de datos.** No se guardan fotos de quienes no coinciden con la lista. Todo vence y se borra automáticamente.
+2. **Mínimo de datos.** No se guardan fotos de quienes no coinciden con la lista, y el paso de una persona autorizada no se registra. El análisis de fotografías no guarda la imagen. Las alertas y capturas se borran solas, y las personas autorizadas vencidas también. Una persona no autorizada vencida deja de reconocerse y se conserva hasta que un administrador decida.
 3. **Todo queda registrado.** Cada acción administrativa queda en la auditoría.
 
 ## Riesgos identificados y cómo se reducen
@@ -20,6 +20,14 @@ Los datos biométricos (fotografías y plantillas faciales) son **datos personal
 | **Ataques web (XSS, clickjacking)** | Robo de la sesión | Cabeceras CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`; React escapa el contenido; consultas SQL parametrizadas |
 | **Falla del equipo** | Pérdida de vigilancia | Reconexión automática de la cámara; reinicio automático del servicio (systemd `Restart=always`); monitoreo de temperatura; los errores de procesamiento no detienen el hilo |
 | **Confundir datos de demostración con reales** | Decisiones sobre datos falsos | Todo lo simulado tiene la etiqueta SIMULADO, una franja morada en el panel y una marca en el video; los registros ficticios no tienen plantilla biométrica |
+
+## Personas autorizadas
+
+Registrar a una persona autorizada guarda su biometría aunque no haya hecho nada, así que exige confirmar su consentimiento y una fecha de vencimiento. El sistema la identifica solo en vivo: no guarda cuándo pasó, para no crear un historial de movimientos de residentes. Si un rostro coincide con la blacklist y con una persona autorizada, se genera la alerta y la revisión humana decide.
+
+## Respaldos
+
+Un respaldo contiene toda la biometría cifrada. Por defecto no incluye la clave, que debe guardarse por separado. Trate cualquier respaldo creado con `--with-key`, y las carpetas `pre-restore-*`, como datos sensibles sin cifrar. La copia `faceguard.db.antes-de-*` contiene los mismos datos que la base de datos. Eliminar a una persona no la borra de los respaldos anteriores.
 
 ## Limitaciones conocidas (honestidad técnica)
 

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 
+from app.config import config
 from app.core.database import query, query_one
 from app.core.security import require
 from app.services import system_monitor
@@ -33,6 +34,7 @@ def live_status() -> dict:
         "gpio": gpio.status(),
         "pending_alerts": pending,
         "demo_mode": settings.get("demo_mode"),
+        "alert_sound": settings.get("alert_sound"),
     }
 
 
@@ -41,8 +43,10 @@ def summary(user: dict = Depends(require("dashboard.view"))):
     today = _local_midnight_utc()
     counts = query_one(
         """SELECT
-             (SELECT COUNT(*) FROM blacklist WHERE status='activo') AS blacklist_active,
-             (SELECT COUNT(*) FROM blacklist) AS blacklist_total,
+             (SELECT COUNT(*) FROM persons WHERE classification='no_autorizada' AND status='activo') AS blacklist_active,
+             (SELECT COUNT(*) FROM persons WHERE classification='no_autorizada') AS blacklist_total,
+             (SELECT COUNT(*) FROM persons) AS persons_total,
+             (SELECT COUNT(*) FROM persons WHERE classification='autorizada' AND status='activo') AS authorized_active,
              (SELECT COUNT(*) FROM events WHERE occurred_at >= :t) AS events_today,
              (SELECT COALESCE(SUM(faces_count),0) FROM events WHERE type='deteccion' AND occurred_at >= :t) AS faces_today,
              (SELECT COUNT(*) FROM events WHERE type='coincidencia' AND occurred_at >= :t) AS alerts_today,
@@ -51,7 +55,8 @@ def summary(user: dict = Depends(require("dashboard.view"))):
         {"t": today},
     )
     recent = query("SELECT * FROM events WHERE type IN ('deteccion','coincidencia','captura') ORDER BY occurred_at DESC LIMIT 8")
-    return {**counts, **live_status(), "recent": [serialize_event(r) for r in recent]}
+    database = {"ok": True, "size_kb": round(config.db_path.stat().st_size / 1024)}
+    return {**counts, **live_status(), "database": database, "recent": [serialize_event(r) for r in recent]}
 
 
 @router.get("/activity")

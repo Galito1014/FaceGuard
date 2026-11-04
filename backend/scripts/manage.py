@@ -4,6 +4,8 @@ Uso (desde la carpeta backend/):
   python -m scripts.manage create-user <usuario> "<Nombre completo>" <rol>
   python -m scripts.manage reset-password <usuario>
   python -m scripts.manage list-users
+  python -m scripts.manage backup [carpeta] [--with-key]
+  python -m scripts.manage restore <respaldo.zip>
 Roles: superadmin, admin, operator, auditor
 """
 from __future__ import annotations
@@ -18,6 +20,7 @@ from app.config import config  # noqa: E402
 from app.core.audit import audit  # noqa: E402
 from app.core.database import execute, query, query_one, run_migrations, utcnow  # noqa: E402
 from app.core.security import ROLES, hash_password, validate_password_strength  # noqa: E402
+from app.services.backup import BackupError, create_backup, restore_backup  # noqa: E402
 
 
 def ask_password() -> str:
@@ -55,6 +58,23 @@ def main(argv: list[str]) -> int:
         execute("DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = ?)", (argv[1],))
         audit(None, "restablecer contraseña (consola)", target=argv[1])
         print("Contraseña restablecida.")
+    elif cmd == "backup" and len(argv) >= 1:
+        rest = [a for a in argv[1:] if a != "--with-key"]
+        target = create_backup(Path(rest[0]) if rest else config.data_dir / "backups", include_key="--with-key" in argv)
+        print(f"Respaldo creado: {target}")
+        if "--with-key" in argv:
+            print("ATENCIÓN: incluye la clave de cifrado. Guárdelo en un lugar seguro.")
+        else:
+            print("La clave de cifrado no va incluida. Guarde una copia aparte de secret/fernet.key.")
+    elif cmd == "restore" and len(argv) == 2:
+        print("Asegúrese de que FaceGuard esté detenido antes de continuar.")
+        if input("Escriba RESTAURAR para reemplazar los datos actuales: ") != "RESTAURAR":
+            print("Cancelado."); return 1
+        try:
+            previous = restore_backup(Path(argv[1]))
+        except BackupError as exc:
+            print(f"No se restauró nada: {exc}"); return 1
+        print(f"Restauración completa. Datos anteriores guardados en {previous}")
     elif cmd == "list-users":
         for u in query("SELECT username, full_name, role, active, last_login FROM users ORDER BY role"):
             print(f"{u['username']:<16} {u['role']:<11} {'activo' if u['active'] else 'inactivo':<9} {u['full_name']}")

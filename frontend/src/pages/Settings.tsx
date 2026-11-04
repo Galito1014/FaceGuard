@@ -16,6 +16,7 @@ interface SettingsResp { values: Settings; cameras: { index: number; path: strin
 interface SysInfo {
   device: { model: string; is_raspberry_pi: boolean; os: string; python: string; arch: string; hostname: string; throttled: string | null };
   status: SystemSnapshot; engine: EngineStatus; app_version: string; db_size_kb: number; data_dir: string;
+  storage: { db_path: string; media_dir: string; log_dir: string; free_gb: number; total_gb: number };
   migrations: { version: string; applied_at: string }[];
 }
 
@@ -149,6 +150,9 @@ export default function SettingsPage() {
                 <Field label="Imágenes de alertas (días)" hint="Borrado seguro del archivo cifrado.">
                   <Input type="number" min={1} max={3650} value={draft.retention_days_snapshots} disabled={!editable} onChange={(e) => set("retention_days_snapshots", Number(e.target.value))} />
                 </Field>
+                <Field label="Autorizadas vencidas (días)" hint="Después se borra su biometría.">
+                  <Input type="number" min={1} max={3650} value={draft.retention_days_expired_authorized} disabled={!editable} onChange={(e) => set("retention_days_expired_authorized", Number(e.target.value))} />
+                </Field>
                 <Field label="Auditoría (días)" hint="Mínimo 30 días.">
                   <Input type="number" min={30} max={3650} value={draft.retention_days_audit} disabled={!editable} onChange={(e) => set("retention_days_audit", Number(e.target.value))} />
                 </Field>
@@ -176,6 +180,8 @@ function AlertsTab({ draft, set, editable, gpio }: { draft: Settings; set: <K ex
   return (
     <div className="space-y-4">
       <Card title="Notificaciones" icon={BellRing}>
+        <Toggle checked={draft.alert_sound} disabled={!editable} onChange={(v) => set("alert_sound", v)}
+          label="Aviso sonoro en el panel" description="Suena en el navegador al llegar una alerta." />
         <Toggle checked={draft.alerts_enabled} disabled={!editable} onChange={(v) => set("alerts_enabled", v)}
           label="Alertas activas" description="Si se desactivan, las coincidencias se registran en el historial pero no generan notificación, LED ni buzzer." />
       </Card>
@@ -239,6 +245,9 @@ function SystemTab({ canControl }: { canControl: boolean }) {
               ["Estado de energía (throttled)", d.device.throttled ?? "No disponible"],
               ["Motor", `${d.engine.label} · ${d.engine.models}`],
               ["Base de datos", `SQLite · ${d.db_size_kb} KB`],
+              ["Ruta de la base de datos", d.storage.db_path],
+              ["Carpeta de imágenes", d.storage.media_dir],
+              ["Espacio libre", `${d.storage.free_gb} GB de ${d.storage.total_gb} GB`],
               ["Migraciones", d.migrations.map((m) => `${m.version} (${fmtDateTime(m.applied_at)})`).join(", ")],
             ].map(([k, v]) => (
               <div key={k}><dt className="text-[11px] uppercase tracking-wider text-ink-400">{k}</dt><dd className="mt-0.5 break-words text-ink-100">{v}</dd></div>

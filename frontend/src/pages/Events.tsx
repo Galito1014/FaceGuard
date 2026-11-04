@@ -76,7 +76,7 @@ export default function EventsPage() {
           <Field label="Estado">
             <Select value={f.status} onChange={set("status")}>
               <option value="">Todos</option><option value="pendiente">Pendiente</option><option value="confirmada">Confirmada</option>
-              <option value="falso_positivo">Falso positivo</option><option value="cerrada">Cerrada</option>
+              <option value="falso_positivo">Descartada</option><option value="cerrada">Cerrada</option>
             </Select>
           </Field>
           <Field label="Origen">

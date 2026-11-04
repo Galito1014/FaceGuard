@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "monitoring_enabled": True,
     # Alertas y GPIO
     "alerts_enabled": True,
+    "alert_sound": True,             # aviso sonoro en el panel
     "gpio_enabled": True,
     "led_pin": 17,
     "buzzer_pin": 27,
@@ -36,6 +37,7 @@ DEFAULTS: dict[str, Any] = {
     "retention_days_events": 30,
     "retention_days_snapshots": 15,
     "retention_days_audit": 365,
+    "retention_days_expired_authorized": 30,  # días tras vencer antes de borrar su biometría
     # Demostración
     "demo_mode": False,
 }
@@ -56,6 +58,7 @@ RULES: dict[str, Any] = {
     "camera_height": (int, 120, 1080),
     "monitoring_enabled": (bool,),
     "alerts_enabled": (bool,),
+    "alert_sound": (bool,),
     "gpio_enabled": (bool,),
     "led_pin": (int, 2, 27),
     "buzzer_pin": (int, 2, 27),
@@ -66,6 +69,7 @@ RULES: dict[str, Any] = {
     "retention_days_events": (int, 1, 3650),
     "retention_days_snapshots": (int, 1, 3650),
     "retention_days_audit": (int, 30, 3650),
+    "retention_days_expired_authorized": (int, 1, 3650),
     "demo_mode": (bool,),
 }
 

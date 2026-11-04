@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity, BellRing, BrainCircuit, CalendarClock, Cctv, Cpu, LayoutDashboard, Lightbulb, MemoryStick, ScanFace,
-  ShieldAlert, Thermometer, Timer,
+  ShieldAlert, Thermometer, Timer, Users,
 } from "lucide-react";
 import clsx from "clsx";
 import { get, qs } from "@/lib/api";
@@ -81,15 +81,17 @@ export default function DashboardPage() {
       <PageHeader title="Centro de monitoreo" subtitle="Vista general del sistema y la actividad del día" icon={LayoutDashboard}
         actions={<Badge tone={live.engine.state === "error" ? "red" : "green"} dot>{live.engine.label}</Badge>} />
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Rostros detectados hoy" value={d.faces_today} icon={ScanFace}
           hint={<>En cuadro ahora: <span className="font-mono text-ink-100">{live.engine.faces_now}</span></>} />
-        <StatCard label="Lista de alerta" value={d.blacklist_active} icon={ShieldAlert} tone="slate"
-          hint={`${d.blacklist_total} registros en total · ${live.engine.gallery_size} plantillas activas`} />
+        <StatCard label="Personas registradas" value={d.persons_total} icon={Users} tone="slate"
+          hint={`${d.authorized_active} autorizadas activas · ${live.engine.templates} plantillas · BD ${d.database.ok ? "correcta" : "con error"}`} />
+        <StatCard label="En la blacklist" value={d.blacklist_active} icon={ShieldAlert} tone="slate"
+          hint={`${d.blacklist_total} registros en total`} />
         <StatCard label="Alertas pendientes" value={live.pending_alerts} icon={BellRing} tone={live.pending_alerts ? "red" : "green"}
           pulse={live.pending_alerts > 0} hint={`${d.alerts_today} posibles coincidencias hoy`} />
         <StatCard label="Eventos hoy" value={d.events_today} icon={CalendarClock} tone="amber"
-          hint={`${d.confirmed} confirmadas · ${d.false_positives} falsos positivos (histórico)`} />
+          hint={`${d.confirmed} confirmadas · ${d.false_positives} descartadas (histórico)`} />
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-5">

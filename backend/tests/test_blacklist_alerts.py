@@ -20,14 +20,14 @@ def _face_image():
 
 
 def test_rechaza_archivo_que_no_es_imagen(client):
-    r = client.post("/api/blacklist/validate-photo", files={"photo": ("x.jpg", b"hola", "image/jpeg")})
+    r = client.post("/api/persons/validate-photo", files={"photo": ("x.jpg", b"hola", "image/jpeg")})
     assert r.status_code == 415
 
 
 @pytest.mark.skipif(not HAS_MODELS, reason="modelos no descargados")
 def test_rechaza_foto_sin_rostro(client):
     blank = np.full((400, 400, 3), 128, np.uint8)
-    r = client.post("/api/blacklist/validate-photo", files={"photo": ("b.jpg", _jpeg(blank), "image/jpeg")})
+    r = client.post("/api/persons/validate-photo", files={"photo": ("b.jpg", _jpeg(blank), "image/jpeg")})
     assert r.status_code == 200 and r.json()["ok"] is False
 
 
@@ -36,7 +36,7 @@ def test_registro_cifrado_y_reconocimiento(client):
     img = _face_image()
     data = {"full_name": "Prueba", "reason": "Prueba automática", "legal_basis": "Imagen de dominio público",
             "alert_level": "alto", "expires_at": "2099-01-01"}
-    r = client.post("/api/blacklist", data=data, files={"photo": ("a.jpg", _jpeg(img), "image/jpeg")})
+    r = client.post("/api/persons", data=data, files={"photo": ("a.jpg", _jpeg(img), "image/jpeg")})
     assert r.status_code == 200, r.text
     entry = r.json()
     # La foto en disco está cifrada (no comienza con la firma JPEG)
@@ -48,10 +48,10 @@ def test_registro_cifrado_y_reconocimiento(client):
     meta, sim = gallery.best_match(engine.embed(small, faces[0]))
     assert meta["entry_id"] == entry["id"] and sim > 0.6
     # Historial de modificaciones
-    client.put(f"/api/blacklist/{entry['id']}", data={"alert_level": "medio"})
-    detail = client.get(f"/api/blacklist/{entry['id']}").json()
+    client.put(f"/api/persons/{entry['id']}", data={"alert_level": "medio"})
+    detail = client.get(f"/api/persons/{entry['id']}").json()
     assert [h["action"] for h in detail["history"]] == ["modificado", "creado"]
-    assert client.delete(f"/api/blacklist/{entry['id']}").status_code == 200
+    assert client.delete(f"/api/persons/{entry['id']}").status_code == 200
     assert gallery.size == 0
 
 

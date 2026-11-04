@@ -13,6 +13,7 @@ from app.core.audit import audit
 from app.core.crypto import read_encrypted_file
 from app.core.database import execute, query, query_one, utcnow
 from app.core.security import client_ip, has_perm, require
+from app.services.persons import primary_photo_file
 from app.services.events import REVIEW_LABELS, TYPE_LABELS, serialize_event
 from app.services.realtime import hub
 
@@ -124,11 +125,11 @@ def get_event(event_id: int, user: dict = Depends(require("events.view"))):
     out["can_view_images"] = has_perm(user, "alerts.images")
     out["can_review"] = has_perm(user, "alerts.review")
     if row["entry_id"]:
-        entry = query_one("SELECT uid, full_name, alert_level, reason, status, photo_file, is_simulated FROM blacklist WHERE id = ?",
+        entry = query_one("SELECT uid, full_name, alert_level, reason, status, is_simulated FROM persons WHERE id = ?",
                           (row["entry_id"],))
         if entry:
             out["entry"] = {"uid": entry["uid"], "full_name": entry["full_name"], "alert_level": entry["alert_level"],
-                            "reason": entry["reason"], "status": entry["status"], "has_photo": bool(entry["photo_file"])}
+                            "reason": entry["reason"], "status": entry["status"], "has_photo": primary_photo_file(row["entry_id"]) is not None}
     return out
 
 
