@@ -355,6 +355,8 @@ En el panel web:
 
 Para medir la similitud y el tiempo por fotograma, ejecute `python -m scripts.benchmark_engine referencia.jpg prueba1.jpg`.
 
+Para comparar el procesamiento con y sin seguimiento de rostros en un video corto, ejecute `python -m scripts.benchmark_engine --video ruta.mp4 referencia.jpg`.
+
 #### 9. Errores comunes en Windows
 
 | Error | Solución |

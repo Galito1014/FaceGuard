@@ -3,6 +3,13 @@ from datetime import datetime, timedelta, timezone
 from app.core.database import execute, query_one
 
 
+def test_recheck_interval_respeta_el_rango(client):
+    assert client.put("/api/settings", json={"recheck_interval_ms": 0}).status_code == 200
+    assert client.put("/api/settings", json={"recheck_interval_ms": 10000}).status_code == 200
+    assert client.put("/api/settings", json={"recheck_interval_ms": 10001}).status_code == 422
+    client.put("/api/settings", json={"recheck_interval_ms": 1000})
+
+
 def test_configuracion_valida_e_invalida(client):
     assert client.put("/api/settings", json={"match_threshold": 0.5}).status_code == 200
     assert client.get("/api/settings").json()["values"]["match_threshold"] == 0.5

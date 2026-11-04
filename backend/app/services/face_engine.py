@@ -159,6 +159,7 @@ class Gallery:
         self._meta: list[dict[str, Any]] = []
         self._matrix = np.zeros((0, 128), np.float32)
         self._lock = threading.Lock()
+        self.version = 0  # sube en cada carga; invalida el seguimiento de rostros
 
     def load(self) -> int:
         from app.core.crypto import decrypt_embedding
@@ -182,6 +183,7 @@ class Gallery:
         with self._lock:
             self._meta = meta
             self._matrix = np.vstack(vecs).astype(np.float32) if vecs else np.zeros((0, 128), np.float32)
+            self.version += 1
         log.info("Galería cargada: %d plantillas activas", len(meta))
         return len(meta)
 
