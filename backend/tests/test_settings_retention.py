@@ -33,3 +33,36 @@ def test_retencion_borra_eventos_y_vence_registros(client):
     assert query_one("SELECT id FROM events WHERE uid='EV-OLD-PEND'") is not None  # pendientes se conservan
     assert query_one("SELECT status FROM persons WHERE id=?", (eid,))["status"] == "vencido"
     client.delete(f"/api/persons/{eid}")
+
+
+def test_retencion_borra_archivos_huerfanos_antiguos(client):
+    import os
+    import time
+    from app.config import config
+    from app.services.retention import run_retention
+    old = config.media_dir / "photos" / "huerfano.bin"
+    new = config.media_dir / "photos" / "reciente.bin"
+    old.write_bytes(b"x"); new.write_bytes(b"x")
+    past = time.time() - 7200
+    os.utime(old, (past, past))
+    run_retention()
+    assert not old.exists() and new.exists()
+    new.unlink()
+
+
+def test_opciones_de_sonido_y_almacenamiento(client):
+    assert client.put("/api/settings", json={"alert_sound": False}).status_code == 200
+    assert client.get("/api/settings").json()["values"]["alert_sound"] is False
+    client.put("/api/settings", json={"alert_sound": True})
+    storage = client.get("/api/system/info").json()["storage"]
+    assert storage["db_path"].endswith("faceguard.db") and "free_gb" in storage
+
+
+def test_disco_lleno_da_mensaje_comprensible(client, monkeypatch):
+    import errno
+    from app.api import persons
+    def boom(*a, **k):
+        raise OSError(errno.ENOSPC, "No space left")
+    monkeypatch.setattr(persons, "read_photo", boom)
+    r = client.post("/api/persons/validate-photo", files={"photo": ("a.jpg", b"x", "image/jpeg")})
+    assert r.status_code == 507 and "espacio" in r.json()["detail"].lower()

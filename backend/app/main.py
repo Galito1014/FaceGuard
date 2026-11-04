@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import logging
 import os
 import secrets
+import sqlite3
 from contextlib import asynccontextmanager
 from logging.handlers import RotatingFileHandler
 
@@ -21,7 +23,7 @@ def setup_logging() -> None:
     config.ensure_dirs()
     fmt = logging.Formatter("%(asctime)s %(levelname)-7s %(name)s: %(message)s")
     root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    root.setLevel(getattr(logging, config.log_level, logging.INFO))
     if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
         fh = RotatingFileHandler(config.log_dir / "faceguard.log", maxBytes=2_000_000, backupCount=3, encoding="utf-8")
         fh.setFormatter(fmt)
@@ -35,7 +37,7 @@ setup_logging()
 log = logging.getLogger("faceguard")
 
 # Los servicios se importan después de configurar el registro.
-from app.api import admin, auth, camera as camera_api, dashboard, events, persons  # noqa: E402
+from app.api import admin, analysis, auth, camera as camera_api, dashboard, events, persons  # noqa: E402
 from app.services import runtime  # noqa: E402
 from app.services.realtime import hub  # noqa: E402
 from app.services.retention import run_retention  # noqa: E402
@@ -114,9 +116,25 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-for r in (auth.router, dashboard.router, camera_api.router, persons.router, persons.photo_for_alert_router,
+for r in (auth.router, dashboard.router, camera_api.router, persons.router, persons.photo_for_alert_router, analysis.router,
           events.router, admin.router):
     app.include_router(r)
+
+
+@app.exception_handler(OSError)
+async def storage_error(request: Request, exc: OSError):
+    log.exception("Error de almacenamiento")
+    if exc.errno == errno.ENOSPC:
+        return JSONResponse({"detail": "No hay espacio de almacenamiento disponible. Libere espacio e intente de nuevo."}, 507)
+    if exc.errno in (errno.EACCES, errno.EPERM, errno.EROFS):
+        return JSONResponse({"detail": "Sin permisos de escritura en la carpeta de datos."}, 500)
+    return JSONResponse({"detail": "Error al leer o escribir archivos."}, 500)
+
+
+@app.exception_handler(sqlite3.OperationalError)
+async def database_busy(request: Request, exc: sqlite3.OperationalError):
+    log.exception("Error de base de datos")
+    return JSONResponse({"detail": "La base de datos no está disponible en este momento. Intente de nuevo."}, 503)
 
 
 @app.get("/api/health")

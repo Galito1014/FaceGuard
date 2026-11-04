@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "monitoring_enabled": True,
     # Alertas y GPIO
     "alerts_enabled": True,
+    "alert_sound": True,             # aviso sonoro en el panel
     "gpio_enabled": True,
     "led_pin": 17,
     "buzzer_pin": 27,
@@ -56,6 +57,7 @@ RULES: dict[str, Any] = {
     "camera_height": (int, 120, 1080),
     "monitoring_enabled": (bool,),
     "alerts_enabled": (bool,),
+    "alert_sound": (bool,),
     "gpio_enabled": (bool,),
     "led_pin": (int, 2, 27),
     "buzzer_pin": (int, 2, 27),

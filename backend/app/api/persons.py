@@ -6,6 +6,7 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 
 from app.api.common import norm_dt, paginate
@@ -20,6 +21,7 @@ from app.services.settings_store import settings
 router = APIRouter(prefix="/api/persons", tags=["persons"])
 
 MAX_PHOTO_BYTES = 6 * 1024 * 1024
+MAX_PIXELS = 40_000_000  # evita agotar la memoria con una imagen muy comprimida
 LEVELS = {"bajo", "medio", "alto"}
 STATUSES = {"activo", "inactivo", "vencido"}
 CLASSIFICATIONS = {"autorizada", "no_autorizada"}
@@ -51,12 +53,27 @@ def _person(person_id: int) -> dict:
     return row
 
 
+def image_pixels(data: bytes) -> int | None:
+    """Píxeles según la cabecera, sin descomprimir la imagen."""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return int.from_bytes(data[16:20], "big") * int.from_bytes(data[20:24], "big")
+    i = 2
+    while i + 9 < len(data) and data[i] == 0xFF:  # segmentos JPEG hasta el marcador SOF
+        marker = data[i + 1]
+        if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):
+            return int.from_bytes(data[i + 5:i + 7], "big") * int.from_bytes(data[i + 7:i + 9], "big")
+        i += 2 + int.from_bytes(data[i + 2:i + 4], "big")
+    return None
+
+
 async def read_photo(photo: UploadFile) -> bytes:
     data = await photo.read(MAX_PHOTO_BYTES + 1)
     if len(data) > MAX_PHOTO_BYTES:
         raise HTTPException(413, "La fotografía supera 6 MB.")
     if not data[:3] == b"\xff\xd8\xff" and not data[:8] == b"\x89PNG\r\n\x1a\n":
         raise HTTPException(415, "Formato no admitido. Use JPG o PNG.")
+    if (image_pixels(data) or 0) > MAX_PIXELS:
+        raise HTTPException(413, "La imagen tiene demasiados píxeles. Redúzcala antes de subirla.")
     return data
 
 
@@ -158,7 +175,8 @@ def list_entries(
 
 @router.post("/validate-photo")
 async def validate_photo(photo: UploadFile = File(...), user: dict = Depends(require("blacklist.edit"))):
-    report = engine.analyze_photo(await read_photo(photo))
+    data = await read_photo(photo)
+    report = await run_in_threadpool(engine.analyze_photo, data)
     out = _public_report(report)
     out["duplicates"] = find_similar(report["embedding"], settings.get("match_threshold")) if report["ok"] else []
     return out
@@ -179,7 +197,7 @@ async def create_entry(
     if fields["expires_at"] <= utcnow():
         raise HTTPException(422, "La fecha de vencimiento debe ser futura.")
     data = await read_photo(photo)
-    report = _validated_report(data)
+    report = await run_in_threadpool(_validated_report, data)
     _check_duplicates(report, confirm_duplicate)
     now = utcnow()
     uid = f"FG-{secrets.token_hex(3).upper()}"
@@ -244,7 +262,7 @@ async def update_entry(
     data = report = None
     if photo is not None and photo.filename:
         data = await read_photo(photo)
-        report = _validated_report(data)
+        report = await run_in_threadpool(_validated_report, data)
         if query_one("SELECT id FROM face_samples WHERE person_id = ? AND content_hash = ?", (entry_id, content_hash(data))):
             raise HTTPException(409, "Esta fotografía ya está registrada para esta persona.")
         changes["fotografía"] = ["anterior", "reemplazada"]
@@ -310,7 +328,7 @@ async def add_sample(
     data = await read_photo(photo)
     if query_one("SELECT id FROM face_samples WHERE person_id = ? AND content_hash = ?", (entry_id, content_hash(data))):
         raise HTTPException(409, "Esta fotografía ya está registrada para esta persona.")
-    report = _validated_report(data)
+    report = await run_in_threadpool(_validated_report, data)
     _check_duplicates(report, confirm_duplicate, exclude=entry_id)
     now = utcnow()
     with get_db() as db:

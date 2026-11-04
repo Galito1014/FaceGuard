@@ -143,6 +143,7 @@ PERMISSIONS: dict[str, set[str]] = {
     "blacklist.view":     {"superadmin", "admin", "auditor"},
     "blacklist.photos":   {"superadmin", "admin"},
     "blacklist.edit":     {"superadmin", "admin"},
+    "analysis.run":       {"superadmin", "admin", "operator"},
     "alerts.view":        {"superadmin", "admin", "operator", "auditor"},
     "alerts.images":      {"superadmin", "admin", "operator"},
     "alerts.review":      {"superadmin", "admin", "operator"},

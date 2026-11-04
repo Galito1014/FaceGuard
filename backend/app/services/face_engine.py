@@ -23,6 +23,10 @@ from app.config import config
 
 log = logging.getLogger("faceguard.engine")
 
+ANALYSIS_WIDTH = 1280        # ancho máximo al analizar fotografías con varios rostros
+MIN_ANALYSIS_FACE = 60       # píxeles de ancho
+MIN_ANALYSIS_SHARPNESS = 20  # varianza del laplaciano
+
 MODEL_VERSION = "sface_2021dec"  # se guarda con cada plantilla; otra versión no es comparable
 
 
@@ -151,6 +155,33 @@ class FaceEngine:
         report["metrics"] = {"face_score": round(face.score, 3), "face_width": fw,
                              "sharpness": round(sharp, 1), "brightness": round(bright, 1)}
         return report
+
+    # ---------------------------------------------------- análisis de fotografías
+    def detect_all(self, image_bytes: bytes) -> tuple[np.ndarray, list[dict[str, Any]]] | None:
+        """Detecta todos los rostros y evalúa cada uno. Nada se guarda.
+
+        Devuelve (imagen, rostros) o None si la imagen no se puede leer. Un
+        rostro con problemas de calidad no se compara: `issues` explica por qué.
+        """
+        img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
+        if img is None:
+            return None
+        faces, small, _ = self.detect(img, ANALYSIS_WIDTH, 0.6, 20)
+        out: list[dict[str, Any]] = []
+        for face in faces:
+            x, y, bw, bh = face.box
+            crop = img[max(0, y):y + bh, max(0, x):x + bw]
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) if crop.size else np.zeros((1, 1), np.uint8)
+            issues: list[str] = []
+            if bw < MIN_ANALYSIS_FACE:
+                issues.append(f"Rostro demasiado pequeño ({bw} px; mínimo {MIN_ANALYSIS_FACE} px)")
+            if cv2.Laplacian(gray, cv2.CV_64F).var() < MIN_ANALYSIS_SHARPNESS:
+                issues.append("Imagen borrosa")
+            if not 30 <= gray.mean() <= 230:
+                issues.append("Iluminación insuficiente o excesiva")
+            out.append({"box": [int(v) for v in face.box], "score": face.score, "issues": issues,
+                        "embedding": None if issues else self.embed(small, face)})
+        return img, out
 
 
 class Gallery:

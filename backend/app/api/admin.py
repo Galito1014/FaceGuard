@@ -1,6 +1,8 @@
 """Usuarios, auditoría, configuración, sistema y modo demostración."""
 from __future__ import annotations
 
+import shutil
+
 from collections import deque
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -162,6 +164,12 @@ def gpio_test(request: Request, user: dict = Depends(require("settings.edit"))):
 
 
 # ---------------------------------------------------------------- sistema
+def _storage() -> dict:
+    disk = shutil.disk_usage(config.data_dir)
+    return {"db_path": str(config.db_path), "media_dir": str(config.media_dir), "log_dir": str(config.log_dir),
+            "free_gb": round(disk.free / 1024 ** 3, 1), "total_gb": round(disk.total / 1024 ** 3, 1)}
+
+
 @router.get("/api/system/info")
 def system_info(user: dict = Depends(require("settings.view"))):
     from app.core.database import query as q
@@ -169,7 +177,7 @@ def system_info(user: dict = Depends(require("settings.view"))):
     migrations = q("SELECT version, applied_at FROM schema_migrations ORDER BY version")
     return {"device": system_monitor.info(), "status": system_monitor.snapshot(), "engine": pipeline.status(),
             "app_version": config.version, "db_size_kb": round(db_size / 1024), "migrations": migrations,
-            "data_dir": str(config.data_dir)}
+            "data_dir": str(config.data_dir), "storage": _storage()}
 
 
 @router.get("/api/system/logs")

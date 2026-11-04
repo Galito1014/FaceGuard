@@ -80,10 +80,14 @@ class Config:
     # 0 = el admin inicial entra directo con FACEGUARD_ADMIN_PASSWORD, sin cambio obligatorio.
     force_password_change: bool = field(default_factory=lambda: _env_bool("FACEGUARD_FORCE_PASSWORD_CHANGE", True))
     camera_name: str = field(default_factory=lambda: os.getenv("FACEGUARD_CAMERA_NAME", "CAM-01 Entrada principal"))
+    # Por defecto, la base de datos y las imágenes viven dentro de data_dir.
+    db_override: str = field(default_factory=lambda: os.getenv("FACEGUARD_DB_PATH", ""))
+    media_override: str = field(default_factory=lambda: os.getenv("FACEGUARD_MEDIA_DIR", ""))
+    log_level: str = field(default_factory=lambda: os.getenv("FACEGUARD_LOG_LEVEL", "INFO").upper())
 
     @property
     def db_path(self) -> Path:
-        return self.data_dir / "faceguard.db"
+        return _env_path("FACEGUARD_DB_PATH", self.data_dir / "faceguard.db") if self.db_override else self.data_dir / "faceguard.db"
 
     @property
     def secret_dir(self) -> Path:
@@ -91,7 +95,7 @@ class Config:
 
     @property
     def media_dir(self) -> Path:
-        return self.data_dir / "media"
+        return _env_path("FACEGUARD_MEDIA_DIR", self.data_dir / "media") if self.media_override else self.data_dir / "media"
 
     @property
     def log_dir(self) -> Path:

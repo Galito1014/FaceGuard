@@ -7,13 +7,17 @@ Se ejecuta al iniciar y luego cada hora:
   * Marca como "vencido" todo registro de la lista con fecha de revisión pasada
     y lo excluye del reconocimiento.
   * Elimina sesiones expiradas y auditoría más antigua que `retention_days_audit`.
+  * Borra archivos sin referencia en la base de datos, por ejemplo tras un corte
+    de luz durante un registro. Se espera una hora para no tocar uno en curso.
 """
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from app.config import config
 from app.core.audit import audit
 from app.core.crypto import secure_delete
 from app.core.database import get_db, query, utcnow
@@ -21,9 +25,28 @@ from app.services.settings_store import settings
 
 log = logging.getLogger("faceguard.retention")
 
+ORPHAN_MIN_AGE_SECONDS = 3600
+
 
 def _cutoff(days: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(days=days)).replace(microsecond=0).isoformat()
+
+
+def _remove_orphans() -> int:
+    referenced = {r["f"] for r in query("SELECT photo_file AS f FROM face_samples")}
+    referenced |= {r["f"] for r in query("SELECT snapshot_file AS f FROM events WHERE snapshot_file IS NOT NULL")}
+    limit = time.time() - ORPHAN_MIN_AGE_SECONDS
+    removed = 0
+    for sub in ("photos", "snapshots"):
+        folder = config.media_dir / sub
+        if not folder.exists():
+            continue
+        for path in folder.glob("*.bin"):
+            name = f"{sub}/{path.name}"
+            if name not in referenced and path.stat().st_mtime < limit:
+                secure_delete(name)
+                removed += 1
+    return removed
 
 
 def run_retention() -> dict[str, Any]:
@@ -54,7 +77,8 @@ def run_retention() -> dict[str, Any]:
         sessions = db.execute("DELETE FROM sessions WHERE expires_at < ?", (now,)).rowcount
         audit_deleted = db.execute("DELETE FROM audit_log WHERE at < ?", (_cutoff(cfg["retention_days_audit"]),)).rowcount
     result = {"events_deleted": events_deleted, "snapshots_deleted": len(old_snaps) + len(old_events_files),
-              "entries_expired": len(expired), "sessions_deleted": sessions, "audit_deleted": audit_deleted}
+              "entries_expired": len(expired), "sessions_deleted": sessions, "audit_deleted": audit_deleted,
+              "orphans_deleted": _remove_orphans()}
     if any(result.values()):
         log.info("Retención aplicada: %s", result)
         audit(None, "retención automática", details=result)
