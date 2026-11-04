@@ -7,6 +7,7 @@ import pytest
 from app.services.face_engine import Face, engine, gallery
 from app.services.pipeline import pipeline
 from app.services.settings_store import settings
+from app.services.tracker import FULL_CHECK_SECONDS
 
 META = {"entry_id": 1, "uid": "BL-1", "name": "Persona de prueba", "level": "medio", "is_simulated": False}
 
@@ -43,9 +44,35 @@ def run_cycles(env, cfg, n):
         pipeline._process_real(env.frame, cfg, now=i * 0.25)
 
 
-def test_rostro_quieto_se_reconoce_una_vez_por_segundo(env):
-    run_cycles(env, env.cfg, 8)  # 2 s a 4 ciclos por segundo
+def test_rostro_quieto_se_reconoce_una_vez_por_segundo_tras_el_inicio(env):
+    run_cycles(env, env.cfg, 8)  # periodo inicial: 2 s a 4 ciclos por segundo
+    assert env.embed_calls == 8
+    env.embed_calls = 0
+    for i in range(8, 16):
+        pipeline._process_real(env.frame, env.cfg, now=i * 0.25)
     assert env.embed_calls == 2
+
+
+def test_ciclos_lentos_generan_alerta(env):
+    env.best_match = (META, 0.6)
+    for i in range(3):
+        pipeline._process_real(env.frame, env.cfg, now=i * 2.0)
+    assert len(env.alerts) == 2
+
+
+def test_rostro_que_cruza_rapido_genera_alerta(env):
+    env.best_match = (META, 0.6)
+    for i in range(3):
+        env.boxes = [(i * 219, 100, 100, 100)]
+        pipeline._process_real(env.frame, env.cfg, now=i * 0.25)
+    assert len(env.alerts) == 2
+
+
+def test_primer_fotograma_malo_no_retrasa_la_alerta(env):
+    for i, sim in enumerate((0.3, 0.6, 0.6)):
+        env.best_match = (META, sim)
+        pipeline._process_real(env.frame, env.cfg, now=i * 0.25)
+    assert len(env.alerts) == 1
 
 
 def test_intervalo_0_reconoce_en_cada_ciclo(env):
@@ -92,8 +119,8 @@ def test_reconocimiento_periodico_corrige_identidad_tras_un_cruce(env):
 
 
 def test_cuenta_reconocimientos_hechos_y_evitados(env):
-    run_cycles(env, env.cfg, 4)
-    assert (pipeline.embeds_computed, pipeline.embeds_skipped) == (1, 3)
+    run_cycles(env, env.cfg, 12)  # 3 s: 8 iniciales, 1 revisión y 3 evitados
+    assert (pipeline.embeds_computed, pipeline.embeds_skipped) == (9, 3)
 
 
 def test_galeria_vacia_no_alerta(env):
@@ -103,6 +130,6 @@ def test_galeria_vacia_no_alerta(env):
 
 
 def test_status_incluye_contadores(env):
-    run_cycles(env, env.cfg, 2)
+    run_cycles(env, env.cfg, 12)
     status = pipeline.status()
-    assert status["embeds_computed"] == 1 and status["embeds_skipped"] == 1
+    assert status["embeds_computed"] == 9 and status["embeds_skipped"] == 3

@@ -1,5 +1,5 @@
 """Seguimiento de rostros: asociación entre ciclos y racha por rostro."""
-from app.services.tracker import TRACK_TTL_SECONDS, FaceTracker
+from app.services.tracker import FULL_CHECK_SECONDS, TRACK_TTL_SECONDS, FaceTracker
 from scripts.benchmark_engine import simulate
 
 META_A = {"entry_id": 1}
@@ -45,15 +45,24 @@ def test_track_expira_tras_el_ttl():
 def test_needs_embedding_por_estado():
     t = FaceTracker()
     tr = t.update([(100, 100, 80, 80)], 0.0)[0]
+    inicio = FULL_CHECK_SECONDS                            # pasado el periodo inicial
     assert t.needs_embedding(tr, 0.0, 1.0)                 # nuevo
+    t.record_result(tr, None, 0.1, 0.42, 2, inicio)
+    assert not t.needs_embedding(tr, inicio + 0.5, 1.0)    # descartado, antes del intervalo
+    assert t.needs_embedding(tr, inicio + 1.0, 1.0)        # descartado, tras el intervalo
+    assert t.needs_embedding(tr, inicio + 0.1, 0.0)        # intervalo 0: siempre
+    t.record_result(tr, META_A, 0.6, 0.42, 2, inicio + 1.0)
+    assert t.needs_embedding(tr, inicio + 1.1, 1.0)        # en verificación
+    t.record_result(tr, META_A, 0.6, 0.42, 2, inicio + 1.1)
+    assert tr.confirmed and not t.needs_embedding(tr, inicio + 1.2, 1.0)
+
+
+def test_rostro_reciente_se_reconoce_en_cada_ciclo():
+    t = FaceTracker()
+    tr = t.update([(100, 100, 80, 80)], 0.0)[0]
     t.record_result(tr, None, 0.1, 0.42, 2, 0.0)
-    assert not t.needs_embedding(tr, 0.5, 1.0)             # descartado, antes del intervalo
-    assert t.needs_embedding(tr, 1.0, 1.0)                 # descartado, tras el intervalo
-    assert t.needs_embedding(tr, 0.1, 0.0)                 # intervalo 0: siempre
-    t.record_result(tr, META_A, 0.6, 0.42, 2, 1.0)
-    assert t.needs_embedding(tr, 1.1, 1.0)                 # en verificación
-    t.record_result(tr, META_A, 0.6, 0.42, 2, 1.1)
-    assert tr.confirmed and not t.needs_embedding(tr, 1.2, 1.0)
+    assert t.needs_embedding(tr, 0.25, 1.0)
+    assert t.needs_embedding(tr, FULL_CHECK_SECONDS - 0.01, 1.0)
 
 
 def test_dos_rostros_iguales_a_una_persona_no_confirman_en_un_fotograma():
@@ -62,6 +71,44 @@ def test_dos_rostros_iguales_a_una_persona_no_confirman_en_un_fotograma():
     t.record_result(a, META_A, 0.6, 0.42, 2, 0.0)
     t.record_result(b, META_A, 0.6, 0.42, 2, 0.0)
     assert not a.confirmed and not b.confirmed
+
+
+def test_persona_con_rostro_veloz_confirma_en_ciclos_seguidos():
+    t = FaceTracker()
+    a = t.update([(0, 0, 80, 80)], 0.0)[0]
+    t.record_result(a, META_A, 0.6, 0.42, 2, 0.0)
+    b = t.update([(300, 0, 80, 80)], 0.25)[0]
+    t.record_result(b, META_A, 0.6, 0.42, 2, 0.25)
+    assert a.id != b.id and b.confirmed
+
+
+def test_ciclos_lentos_confirman_aunque_expire_el_track():
+    t = FaceTracker()
+    a = t.update([(0, 0, 80, 80)], 0.0)[0]
+    t.record_result(a, META_A, 0.6, 0.42, 2, 0.0)
+    b = t.update([(0, 0, 80, 80)], 5.0)[0]
+    t.record_result(b, META_A, 0.6, 0.42, 2, 5.0)
+    assert a.id != b.id and b.confirmed
+
+
+def test_racha_de_persona_se_corta_si_falta_un_ciclo():
+    t = FaceTracker()
+    a = t.update([(0, 0, 80, 80)], 0.0)[0]
+    t.record_result(a, META_A, 0.6, 0.42, 2, 0.0)
+    t.update([], 0.25)
+    b = t.update([(300, 0, 80, 80)], 0.5)[0]
+    t.record_result(b, META_A, 0.6, 0.42, 2, 0.5)
+    assert not b.confirmed
+
+
+def test_reset_borra_la_racha_de_persona():
+    t = FaceTracker()
+    a = t.update([(0, 0, 80, 80)], 0.0)[0]
+    t.record_result(a, META_A, 0.6, 0.42, 2, 0.0)
+    t.reset()
+    b = t.update([(300, 0, 80, 80)], 0.25)[0]
+    t.record_result(b, META_A, 0.6, 0.42, 2, 0.25)
+    assert not b.confirmed
 
 
 def test_racha_se_reinicia_bajo_el_umbral_y_con_otra_persona():
@@ -98,11 +145,11 @@ def test_reset_borra_los_tracks():
 
 
 def test_simulate_compara_con_y_sin_seguimiento():
-    det = [(i * 0.25, [(100, 100, 80, 80)]) for i in range(8)]
+    det = [(i * 0.25, [(100, 100, 80, 80)]) for i in range(16)]  # 4 s
     fn = lambda c, f: (None, 0.1)  # noqa: E731
-    assert simulate(det, 0.0, 0.42, 2, fn)["embeds"] == 8
+    assert simulate(det, 0.0, 0.42, 2, fn)["embeds"] == 16
     con = simulate(det, 1.0, 0.42, 2, fn)
-    assert (con["embeds"], con["skipped"]) == (2, 6)
+    assert (con["embeds"], con["skipped"]) == (10, 6)  # 8 iniciales y 1 por segundo
 
 
 def test_simulate_cuenta_fotogramas_confirmados():

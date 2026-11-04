@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-04-seguimiento-rostros-design.md`
 
+> **Nota:** la revisión final cambió este plan. Se añadieron la racha por persona y `FULL_CHECK_SECONDS`; el diseño describe el resultado definitivo.
+
 ## Global Constraints
 
 - Rama: `fase1-seguimiento-rostros`. Un solo código para Windows y Raspberry Pi.
