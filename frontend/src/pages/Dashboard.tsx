@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Activity, BellRing, BrainCircuit, CalendarClock, Cctv, Cpu, LayoutDashboard, Lightbulb, MemoryStick, ScanFace,
   ShieldAlert, Thermometer, Timer, Users,
 } from "lucide-react";
 import clsx from "clsx";
-import { get, qs } from "@/lib/api";
+import { get, post, qs } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/realtime";
 import { fmtRelative, fmtScore, fmtTime, fmtUptime } from "@/lib/format";
 import type { Activity as ActivityT, LiveStatus, Summary } from "@/lib/types";
-import { Badge, Card, EmptyState, LevelBadge, Meter, PageHeader, ReviewBadge, SimBadge, Spinner, StatCard, StatusDot, Table, Td } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, LevelBadge, Meter, PageHeader, ReviewBadge, SimBadge, Spinner, StatCard, StatusDot, Table, Td } from "@/components/ui";
 import { AlertsChart, DetectionsChart, SERIES } from "@/components/charts";
 import LiveVideo from "@/components/LiveVideo";
+import { ModeBadge } from "@/components/HardwareTab";
 
 function HealthRow({ icon: Icon, label, children }: { icon: React.ElementType; label: string; children: React.ReactNode }) {
   return (
@@ -22,6 +23,19 @@ function HealthRow({ icon: Icon, label, children }: { icon: React.ElementType; l
       <span className="w-28 shrink-0 text-xs text-ink-300">{label}</span>
       <div className="min-w-0 flex-1 text-sm text-ink-100">{children}</div>
     </div>
+  );
+}
+
+function AlarmStatus({ gpio }: { gpio: LiveStatus["gpio"] }) {
+  const { can } = useAuth();
+  const silence = useMutation({ mutationFn: () => post("/api/hardware/silence") });
+  return (
+    <span className="flex flex-wrap items-center gap-2 text-sm">
+      <ModeBadge status={gpio} />
+      {gpio.alarm_active && <Badge tone="red" dot>Alarma activa</Badge>}
+      {gpio.alarm_active && can("alerts.review") &&
+        <Button size="sm" variant="danger" loading={silence.isPending} onClick={() => silence.mutate()}>Silenciar</Button>}
+    </span>
   );
 }
 
@@ -54,8 +68,7 @@ export function SystemHealth({ s }: { s: LiveStatus }) {
         )}
       </HealthRow>
       <HealthRow icon={Lightbulb} label="LED / buzzer">
-        <span className="text-sm">{s.gpio.simulated ? <Badge tone="amber">GPIO simulado</Badge> : <Badge tone="green">GPIO listo</Badge>}
-          {s.gpio.alarm_active && <Badge tone="red" className="ml-2">Alarma activa</Badge>}</span>
+        <AlarmStatus gpio={s.gpio} />
       </HealthRow>
       <HealthRow icon={Timer} label="Encendido">{fmtUptime(s.system.uptime_s)}</HealthRow>
     </div>

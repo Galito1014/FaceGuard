@@ -16,7 +16,7 @@ from app.core.database import execute, query, query_one, utcnow
 from app.core.security import ROLE_LABELS, ROLES, client_ip, hash_password, require, validate_password_strength
 from app.services import demo, runtime, system_monitor
 from app.services.camera import list_cameras
-from app.services.gpio import gpio
+from app.services.alarm_controller import alarm
 from app.services.pipeline import pipeline
 from app.services.retention import run_retention
 from app.services.settings_store import settings
@@ -142,7 +142,7 @@ def list_audit(q: str = "", date_from: str | None = None, date_to: str | None = 
 # ------------------------------------------------------------- configuración
 @router.get("/api/settings")
 def get_settings(user: dict = Depends(require("settings.view"))):
-    return {"values": settings.all(), "cameras": list_cameras(), "gpio": gpio.status(),
+    return {"values": settings.all(), "cameras": list_cameras(), "gpio": alarm.status(),
             "camera_prefix": compat.camera_prefix(), "can_edit": user["role"] == "superadmin"}
 
 
@@ -159,8 +159,9 @@ def put_settings(changes: dict, request: Request, user: dict = Depends(require("
 
 @router.post("/api/settings/gpio-test")
 def gpio_test(request: Request, user: dict = Depends(require("settings.edit"))):
+    """Compatibilidad con la pantalla anterior: equivale a la prueba 3 (alarma completa)."""
     audit(user, "prueba de LED y buzzer", ip=client_ip(request))
-    return gpio.test(settings.all())
+    return alarm.test("completa", 2, settings.get("buzzer_pattern"))
 
 
 # ---------------------------------------------------------------- sistema

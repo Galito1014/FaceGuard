@@ -37,7 +37,7 @@ setup_logging()
 log = logging.getLogger("faceguard")
 
 # Los servicios se importan después de configurar el registro.
-from app.api import admin, analysis, auth, camera as camera_api, dashboard, events, persons  # noqa: E402
+from app.api import admin, analysis, auth, camera as camera_api, dashboard, events, hardware, persons  # noqa: E402
 from app.services import runtime  # noqa: E402
 from app.services.realtime import hub  # noqa: E402
 from app.services.retention import run_retention  # noqa: E402
@@ -117,7 +117,7 @@ async def security_headers(request: Request, call_next):
 
 
 for r in (auth.router, dashboard.router, camera_api.router, persons.router, persons.photo_for_alert_router, analysis.router,
-          events.router, admin.router):
+          events.router, admin.router, hardware.router):
     app.include_router(r)
 
 

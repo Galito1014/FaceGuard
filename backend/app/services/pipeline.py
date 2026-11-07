@@ -29,11 +29,11 @@ import numpy as np
 
 from app.config import config
 from app.core.crypto import save_encrypted_file
-from app.core.database import query
+from app.core.database import execute, query
 from app.services.camera import camera
 from app.services.events import create_event
 from app.services.face_engine import Face, engine, gallery
-from app.services.gpio import gpio
+from app.services.alarm_controller import alarm
 from app.services.realtime import hub
 from app.services.settings_store import settings
 from app.services.tracker import FaceTracker
@@ -173,27 +173,39 @@ class Pipeline:
                 self.embeds_computed += 1
             else:
                 self.embeds_skipped += 1
-            sim = track.sim
-            face.best_score = sim
-            is_candidate = track.streak > 0
-            authorized = track.confirmed and track.meta.get("classification") == "autorizada"
-            confirmed = track.confirmed and not authorized
-            if confirmed:
-                face.match = {**track.meta, "score": sim}
-                self._maybe_alert(frame, face, cfg, simulated=False)
-            # Una persona autorizada solo se indica en vivo: su paso no se registra.
-            label = (f"POSIBLE COINCIDENCIA {sim:.2f}" if confirmed else
-                     f"autorizada {sim:.2f}" if authorized else
-                     f"verificando… {sim:.2f}" if is_candidate else
-                     f"sin coincidencia {sim:.2f}" if gallery.size else f"rostro {face.score:.2f}")
-            overlay.append({"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed and not authorized,
-                            "label": label})
+            overlay.append(self._handle_face(frame, face, track, cfg))
         self._publish_overlay(overlay)
         # Una similitud sobre el umbral sin alerta delataría que pasó una persona
         # autorizada, así que el evento solo guarda las que no coinciden con nadie.
         unmatched = [f.best_score for f in faces if f.best_score < cfg["match_threshold"]]
         best = max(unmatched, default=None) if gallery.size else None
         self._log_detection(len(faces), best, False, matched=sum(1 for f in faces if f.match))
+
+    def _handle_face(self, frame: np.ndarray, face: Face, track: Any, cfg: dict[str, Any], *,
+                     simulated: bool = False, force: bool = False) -> dict[str, Any]:
+        """Decide qué hacer con un rostro ya comparado. Es el único punto que dispara alertas y alarma.
+
+        Solo una coincidencia **confirmada** (N análisis seguidos sobre el umbral)
+        con una persona **no autorizada** (lista de alerta) genera la alerta, el
+        registro y la alarma física. Una persona desconocida o autorizada, nunca.
+        Las pruebas de diagnóstico usan este mismo método con simulated=True.
+        """
+        sim = track.sim
+        face.best_score = sim
+        is_candidate = track.streak > 0
+        authorized = track.confirmed and track.meta.get("classification") == "autorizada"
+        confirmed = track.confirmed and not authorized
+        alert = None
+        if confirmed:
+            face.match = {**track.meta, "score": sim}
+            alert = self._maybe_alert(frame, face, cfg, simulated=simulated, force=force)
+        # Una persona autorizada solo se indica en vivo: su paso no se registra.
+        label = (f"POSIBLE COINCIDENCIA {sim:.2f}" if confirmed else
+                 f"autorizada {sim:.2f}" if authorized else
+                 f"verificando… {sim:.2f}" if is_candidate else
+                 f"sin coincidencia {sim:.2f}" if gallery.size else f"rostro {face.score:.2f}")
+        return {"box": face.box, "match": confirmed, "candidate": is_candidate and not confirmed and not authorized,
+                "label": label, "alert": alert}
 
     # ---------------------------------------------------- modo demostración
     def _process_demo(self, frame: np.ndarray, cfg: dict[str, Any]) -> None:
@@ -252,8 +264,18 @@ class Pipeline:
             notify=notify,
         )
         self.alerts_generated += 1
+        # Alarma física: en su propio hilo, nunca detiene el procesamiento del video.
         if notify:
-            row["gpio"] = gpio.alarm(level, cfg)
+            result = alarm.trigger(level, cfg, source="simulada" if simulated else "deteccion",
+                                   event_id=row["id"], entry_name=m.get("name"))
+        else:
+            result = {"led": False, "buzzer": False, "state": "sin_notificacion", "activation_id": None}
+        row["gpio"] = result
+        row["alarm_state"] = result["state"]
+        try:
+            execute("UPDATE events SET alarm_state = ? WHERE id = ?", (result["state"], row["id"]))
+        except Exception:
+            log.exception("No se pudo guardar el estado de la alarma del evento %s", row["uid"])
         log.info("Alerta %s (%s, %.2f)%s", row["uid"], m["uid"], m["score"], " [simulada]" if simulated else "")
         return row
 

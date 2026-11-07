@@ -32,17 +32,23 @@ def read_temperature() -> float | None:
     return None
 
 
-def device_model() -> str:
+def _devicetree_model() -> str | None:
     for path in ("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"):
         try:
             return Path(path).read_text().strip("\x00 \n")
         except OSError:
             continue
-    return f"{platform.system()} {platform.machine()} (no es Raspberry Pi)"
+    return None
+
+
+def device_model() -> str:
+    return _devicetree_model() or f"{platform.system()} {platform.machine()} (no es Raspberry Pi)"
 
 
 def is_raspberry_pi() -> bool:
-    return "raspberry pi" in device_model().lower()
+    # Solo el modelo del device tree: el texto de respaldo de device_model()
+    # dice "no es Raspberry Pi" y no debe contar como una.
+    return "raspberry pi" in (_devicetree_model() or "").lower()
 
 
 def throttled_flags() -> str | None:

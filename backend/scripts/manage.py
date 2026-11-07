@@ -6,6 +6,7 @@ Uso (desde la carpeta backend/):
   python -m scripts.manage list-users
   python -m scripts.manage backup [carpeta] [--with-key]
   python -m scripts.manage restore <respaldo.zip>
+  python -m scripts.manage hardware-test [led|buzzer|completa|blacklist|desconocido|todas]
 Roles: superadmin, admin, operator, auditor
 """
 from __future__ import annotations
@@ -32,6 +33,43 @@ def ask_password() -> str:
         if problem:
             print(problem); continue
         return pw
+
+
+def hardware_test(which: str) -> int:
+    """Diagnóstico del LED y el buzzer sin abrir el panel (con el servicio detenido)."""
+    import time
+
+    from app.services import hardware_diagnostics as diag
+    from app.services.alarm_controller import alarm
+    from app.services.settings_store import settings
+
+    names = list(diag.TESTS) if which == "todas" else [which]
+    if any(n not in diag.TESTS for n in names):
+        print(f"Prueba desconocida. Opciones: {', '.join(diag.TESTS)}, todas"); return 1
+    settings.load()
+    cfg = settings.all()
+    alarm.setup(cfg["led_pin"], cfg["buzzer_pin"], cfg["buzzer_type"], cfg["buzzer_frequency"])
+    st = alarm.status()
+    print(f"Modo: {st['mode']} · LED GPIO{st['led_pin']} (pin {st['led_physical']}) · "
+          f"buzzer {st['buzzer_type']} GPIO{st['buzzer_pin']} (pin {st['buzzer_physical']})")
+    if st["error"]:
+        print(f"  {st['error']}")
+    failed = 0
+    try:
+        for n in names:
+            print(f"\n{diag.TESTS[n]} …")
+            r = diag.run(n, cfg, wait=True)
+            while alarm.alarm_active:  # la prueba 4 dispara la alarma real: esperar a que termine
+                time.sleep(0.1)
+            print(f"  {'OK   ' if r['ok'] else 'FALLO'} {r['message']}")
+            if r["hint"] and (not r["ok"] or n in ("led", "buzzer")):
+                print(f"  → {r['hint']}")
+            failed += not r["ok"]
+            time.sleep(0.5)
+    finally:
+        alarm.close()
+    print(f"\n{len(names) - failed}/{len(names)} pruebas correctas.")
+    return 1 if failed else 0
 
 
 def main(argv: list[str]) -> int:
@@ -75,6 +113,8 @@ def main(argv: list[str]) -> int:
         except BackupError as exc:
             print(f"No se restauró nada: {exc}"); return 1
         print(f"Restauración completa. Datos anteriores guardados en {previous}")
+    elif cmd == "hardware-test" and len(argv) <= 2:
+        return hardware_test(argv[1] if len(argv) == 2 else "todas")
     elif cmd == "list-users":
         for u in query("SELECT username, full_name, role, active, last_login FROM users ORDER BY role"):
             print(f"{u['username']:<16} {u['role']:<11} {'activo' if u['active'] else 'inactivo':<9} {u['full_name']}")

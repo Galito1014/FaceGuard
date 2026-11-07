@@ -2,14 +2,15 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
-  BellRing, BrainCircuit, Cctv, Database, FlaskConical, HardDrive, Lightbulb, RefreshCw, RotateCcw, Save, Server,
-  Settings as SettingsIcon, Trash2, Zap,
+  BellRing, BrainCircuit, Cctv, Cpu, Database, FlaskConical, HardDrive, RefreshCw, RotateCcw, Save, Server,
+  Settings as SettingsIcon, Trash2,
 } from "lucide-react";
 import { get, post, put } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { fmtDateTime, fmtUptime } from "@/lib/format";
 import type { EngineStatus, GpioStatus, Settings, SystemSnapshot } from "@/lib/types";
+import HardwareTab from "@/components/HardwareTab";
 import { Badge, Button, Card, ConfirmDialog, ErrorNote, Field, Input, PageHeader, Select, Spinner, Toggle } from "@/components/ui";
 
 interface SettingsResp { values: Settings; cameras: { index: number; path: string; name: string }[]; gpio: GpioStatus; camera_prefix?: string; can_edit: boolean }
@@ -23,7 +24,8 @@ interface SysInfo {
 const TABS = [
   { key: "recon", label: "Reconocimiento", icon: BrainCircuit },
   { key: "camera", label: "Cámara", icon: Cctv },
-  { key: "alerts", label: "Alertas y GPIO", icon: BellRing },
+  { key: "alerts", label: "Alertas", icon: BellRing },
+  { key: "hardware", label: "Hardware & Alarm Settings", icon: Cpu },
   { key: "retention", label: "Conservación", icon: Database },
   { key: "system", label: "Sistema", icon: Server },
   { key: "demo", label: "Demostración", icon: FlaskConical },
@@ -108,8 +110,8 @@ export default function SettingsPage() {
                   hint="Intervalos más largos reducen el uso de CPU y la temperatura." />
                 <Range label="Ancho de imagen analizada" value={draft.process_width} min={320} max={960} step={32} disabled={!editable}
                   onChange={(v) => set("process_width", v)} fmt={(v) => `${v} px`} hint="Se reduce el fotograma antes de analizarlo." />
-                <Range label="Ventana anti-duplicados" value={draft.dedup_seconds} min={10} max={600} step={10} disabled={!editable}
-                  onChange={(v) => set("dedup_seconds", v)} fmt={(v) => `${v} s`} hint="Una misma persona no genera otra alerta dentro de este tiempo." />
+                <Range label="Cooldown por persona" value={draft.dedup_seconds} min={5} max={600} step={5} disabled={!editable}
+                  onChange={(v) => set("dedup_seconds", v)} fmt={(v) => `${v} s`} hint="Una misma persona no genera otra alerta ni otra alarma física dentro de este tiempo." />
                 <Range label="Agrupación de detecciones" value={draft.detection_log_seconds} min={5} max={300} step={5} disabled={!editable}
                   onChange={(v) => set("detection_log_seconds", v)} fmt={(v) => `${v} s`} hint="Detecciones sin coincidencia se registran como máximo una vez por periodo (sin imagen)." />
               </div>
@@ -140,7 +142,8 @@ export default function SettingsPage() {
             </Card>
           )}
 
-          {tab === "alerts" && <AlertsTab draft={draft} set={set} editable={editable} gpio={q.data.gpio} />}
+          {tab === "alerts" && <AlertsTab draft={draft} set={set} editable={editable} gpio={q.data.gpio} onHardware={() => setTab("hardware")} />}
+          {tab === "hardware" && <HardwareTab draft={draft} set={set} editable={editable} dirty={dirty} canSilence={can("alerts.review")} />}
           {tab === "retention" && (
             <Card title="Periodos de conservación" icon={Database}>
               <div className="grid max-w-3xl gap-4 sm:grid-cols-3">
@@ -171,12 +174,9 @@ export default function SettingsPage() {
   );
 }
 
-function AlertsTab({ draft, set, editable, gpio }: { draft: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void; editable: boolean; gpio: GpioStatus }) {
-  const toast = useToast();
-  const test = useMutation({
-    mutationFn: () => post<{ simulated: boolean }>("/api/settings/gpio-test"),
-    onSuccess: (r) => toast({ kind: "info", title: "Prueba de LED y buzzer enviada", body: r.simulated ? "GPIO en modo simulado: revise el registro del sistema." : "Debería ver el LED parpadear y oír el buzzer 2 s." }),
-  });
+function AlertsTab({ draft, set, editable, gpio, onHardware }: {
+  draft: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void; editable: boolean; gpio: GpioStatus; onHardware: () => void;
+}) {
   return (
     <div className="space-y-4">
       <Card title="Notificaciones" icon={BellRing}>
@@ -185,28 +185,10 @@ function AlertsTab({ draft, set, editable, gpio }: { draft: Settings; set: <K ex
         <Toggle checked={draft.alerts_enabled} disabled={!editable} onChange={(v) => set("alerts_enabled", v)}
           label="Alertas activas" description="Si se desactivan, las coincidencias se registran en el historial pero no generan notificación, LED ni buzzer." />
       </Card>
-      <Card title="LED rojo y buzzer (GPIO)" icon={Lightbulb}
-        actions={<>{gpio.simulated ? <Badge tone="amber">Modo simulado</Badge> : <Badge tone="green">Hardware detectado</Badge>}
-          {editable && <Button size="sm" icon={Zap} loading={test.isPending} onClick={() => test.mutate()}>Probar</Button>}</>}>
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-4">
-            <Toggle checked={draft.gpio_enabled} disabled={!editable} onChange={(v) => set("gpio_enabled", v)} label="Usar GPIO" />
-            <Toggle checked={draft.led_enabled} disabled={!editable || !draft.gpio_enabled} onChange={(v) => set("led_enabled", v)} label="LED rojo" description="Parpadeo rápido en nivel alto, lento en medio/bajo." />
-            <Toggle checked={draft.buzzer_enabled} disabled={!editable || !draft.gpio_enabled} onChange={(v) => set("buzzer_enabled", v)} label="Buzzer (alarma sonora)" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Pin del LED (BCM)"><Input type="number" min={2} max={27} value={draft.led_pin} disabled={!editable} onChange={(e) => set("led_pin", Number(e.target.value))} /></Field>
-            <Field label="Pin del buzzer (BCM)"><Input type="number" min={2} max={27} value={draft.buzzer_pin} disabled={!editable} onChange={(e) => set("buzzer_pin", Number(e.target.value))} /></Field>
-            <Field label="Buzzer desde nivel">
-              <Select value={draft.buzzer_min_level} disabled={!editable} onChange={(e) => set("buzzer_min_level", e.target.value as Settings["buzzer_min_level"])}>
-                <option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option>
-              </Select>
-            </Field>
-            <Field label="Duración (s)"><Input type="number" min={1} max={60} value={draft.gpio_alarm_seconds} disabled={!editable} onChange={(e) => set("gpio_alarm_seconds", Number(e.target.value))} /></Field>
-          </div>
-        </div>
-        {gpio.error && <p className="mt-4 text-xs text-ink-400">{gpio.error}</p>}
-        {gpio.last_action && <p className="mt-1 text-xs text-ink-400">Última acción: {gpio.last_action}</p>}
+      <Card title="LED rojo y buzzer" icon={Cpu}
+        actions={<>{gpio.mode === "hardware" ? <Badge tone="green">Hardware conectado</Badge> : gpio.mode === "error" ? <Badge tone="red">Error de hardware</Badge> : <Badge tone="amber">Modo simulado</Badge>}
+          <Button size="sm" onClick={onHardware}>Abrir Hardware & Alarm Settings</Button></>}>
+        <p className="text-xs text-ink-300">Pines, duraciones, tipo de buzzer, pruebas de diagnóstico e historial de activaciones.</p>
       </Card>
     </div>
   );

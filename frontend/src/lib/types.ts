@@ -40,7 +40,11 @@ export interface FGEvent {
   message: string;
   has_snapshot: boolean;
   is_simulated: boolean;
+  alarm_state?: AlarmState | null;
 }
+
+/** Estado en que quedó la alarma física (LED + buzzer) al registrarse una alerta. */
+export type AlarmState = "activada" | "simulada" | "desactivada" | "sin_notificacion" | "error";
 
 export interface EventDetail extends FGEvent {
   can_view_images: boolean;
@@ -176,11 +180,57 @@ export interface EngineStatus {
 }
 
 export interface GpioStatus {
+  mode: "hardware" | "simulado" | "error";
   available: boolean;
   simulated: boolean;
   error: string | null;
   alarm_active: boolean;
+  led_on: boolean;
+  buzzer_on: boolean;
+  led_pin: number | null;
+  buzzer_pin: number | null;
+  led_physical: number | null;
+  buzzer_physical: number | null;
+  buzzer_type: "activo" | "pasivo";
   last_action: string | null;
+  activations: number;
+}
+
+export interface HardwareInfo {
+  status: GpioStatus;
+  safe_pins: { bcm: number; physical: number }[];
+  tests: { key: HardwareTestKey; title: string }[];
+}
+
+export type HardwareTestKey = "led" | "buzzer" | "completa" | "blacklist" | "desconocido";
+
+export interface HardwareTestResult {
+  test: HardwareTestKey;
+  title: string;
+  ok: boolean;
+  mode: GpioStatus["mode"];
+  simulated: boolean;
+  message: string;
+  hint: string | null;
+}
+
+export interface AlarmActivation {
+  id: number;
+  at: string;
+  source: "deteccion" | "simulada" | "prueba";
+  event_id: number | null;
+  event_uid: string | null;
+  entry_name: string | null;
+  level: Level | null;
+  led: number;
+  buzzer: number;
+  led_seconds: number | null;
+  buzzer_seconds: number | null;
+  mode: GpioStatus["mode"];
+  state: "activa" | "completada" | "silenciada" | "error";
+  ended_at: string | null;
+  silenced_by: string | null;
+  error: string | null;
 }
 
 export interface LiveStatus {
@@ -235,7 +285,11 @@ export interface Settings {
   led_enabled: boolean;
   buzzer_enabled: boolean;
   buzzer_min_level: Level;
-  gpio_alarm_seconds: number;
+  led_seconds: number;
+  buzzer_seconds: number;
+  buzzer_type: "activo" | "pasivo";
+  buzzer_pattern: "intermitente" | "continuo";
+  buzzer_frequency: number;
   retention_days_events: number;
   retention_days_snapshots: number;
   retention_days_audit: number;

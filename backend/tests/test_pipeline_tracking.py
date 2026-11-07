@@ -31,7 +31,7 @@ def env(monkeypatch):
     monkeypatch.setattr(engine, "detect", fake_detect)
     monkeypatch.setattr(engine, "embed", fake_embed)
     monkeypatch.setattr(gallery, "best_match", lambda vec, threshold=None: state.best_match)
-    monkeypatch.setattr(pipeline, "_maybe_alert", lambda frame, face, cfg, simulated: state.alerts.append(face.match))
+    monkeypatch.setattr(pipeline, "_maybe_alert", lambda frame, face, cfg, simulated, force=False: state.alerts.append(face.match))
     monkeypatch.setattr(pipeline, "_log_detection", lambda *a, **k: None)
     pipeline.reset_tracking()
     pipeline.embeds_computed = 0

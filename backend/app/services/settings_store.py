@@ -12,11 +12,11 @@ DEFAULTS: dict[str, Any] = {
     "match_threshold": 0.42,         # similitud coseno SFace (≥ 0.363 recomendado por OpenCV)
     "detection_confidence": 0.85,    # confianza mínima YuNet
     "min_face_size": 60,             # píxeles en la imagen procesada
-    "confirm_frames": 2,             # fotogramas consecutivos para confirmar coincidencia
+    "confirm_frames": 3,             # fotogramas consecutivos para confirmar coincidencia
     "process_interval_ms": 250,      # frecuencia de procesamiento (4 fps)
     "process_width": 480,            # ancho de la imagen que se analiza
     "recheck_interval_ms": 1000,     # revisión periódica de cada rostro (0 = en cada ciclo)
-    "dedup_seconds": 60,             # sin alertas repetidas de la misma persona
+    "dedup_seconds": 15,             # cooldown por persona: sin alertas ni alarmas repetidas
     "detection_log_seconds": 30,     # agrupa detecciones sin coincidencia
     # Cámara
     "camera_index": 0,
@@ -31,8 +31,12 @@ DEFAULTS: dict[str, Any] = {
     "buzzer_pin": 27,
     "led_enabled": True,
     "buzzer_enabled": True,
-    "buzzer_min_level": "medio",     # bajo | medio | alto
-    "gpio_alarm_seconds": 5,
+    "buzzer_min_level": "bajo",      # bajo | medio | alto (bajo = suena con toda coincidencia)
+    "led_seconds": 5,                # tiempo que el LED queda encendido
+    "buzzer_seconds": 3,             # tiempo que suena el buzzer
+    "buzzer_type": "activo",         # activo (oscilador interno) | pasivo (necesita PWM)
+    "buzzer_pattern": "intermitente",  # intermitente | continuo
+    "buzzer_frequency": 2500,        # Hz, solo para buzzer pasivo
     # Retención (días)
     "retention_days_events": 30,
     "retention_days_snapshots": 15,
@@ -60,12 +64,16 @@ RULES: dict[str, Any] = {
     "alerts_enabled": (bool,),
     "alert_sound": (bool,),
     "gpio_enabled": (bool,),
-    "led_pin": (int, 2, 27),
-    "buzzer_pin": (int, 2, 27),
+    "led_pin": "gpio_pin",
+    "buzzer_pin": "gpio_pin",
     "led_enabled": (bool,),
     "buzzer_enabled": (bool,),
     "buzzer_min_level": {"bajo", "medio", "alto"},
-    "gpio_alarm_seconds": (int, 1, 60),
+    "led_seconds": (int, 1, 60),
+    "buzzer_seconds": (int, 1, 60),
+    "buzzer_type": {"activo", "pasivo"},
+    "buzzer_pattern": {"intermitente", "continuo"},
+    "buzzer_frequency": (int, 200, 8000),
     "retention_days_events": (int, 1, 3650),
     "retention_days_snapshots": (int, 1, 3650),
     "retention_days_audit": (int, 30, 3650),
@@ -101,6 +109,16 @@ class SettingsStore:
         if key not in RULES:
             raise ValueError(f"Parámetro desconocido: {key}")
         rule = RULES[key]
+        if rule == "gpio_pin":
+            from app.services.alarm_controller import SAFE_PINS, physical_pin
+            try:
+                value = int(value)
+            except (TypeError, ValueError):
+                raise ValueError(f"{key}: tipo inválido") from None
+            if value not in SAFE_PINS:
+                raise ValueError(f"{key}: GPIO{value} no está permitido. Use uno libre de I2C/UART/SPI: "
+                                 + ", ".join(f"GPIO{p} (pin {physical_pin(p)})" for p in sorted(SAFE_PINS)))
+            return value
         if isinstance(rule, set):
             if value not in rule:
                 raise ValueError(f"{key}: valor no permitido")
