@@ -31,6 +31,8 @@ _probe_lock = threading.Lock()
 
 def list_cameras() -> list[dict[str, Any]]:
     """Cámaras de video disponibles: [{index, path, name}]."""
+    if compat.use_picamera2():
+        return _list_csi()
     if compat.IS_LINUX:
         return _list_v4l2()
     return _list_by_probing()
@@ -99,6 +101,46 @@ def _list_v4l2() -> list[dict[str, Any]]:
             pass
         devices.append({"index": idx, "path": path, "name": name})
     return devices
+
+
+def _list_csi() -> list[dict[str, Any]]:
+    try:
+        from picamera2 import Picamera2  # apt: python3-picamera2
+        infos = Picamera2.global_camera_info()
+    except Exception as exc:
+        log.warning("picamera2 no disponible: %s", exc)
+        return []
+    return [{"index": i, "path": f"CSI {i}", "name": info.get("Model", "Cámara CSI")} for i, info in enumerate(infos)]
+
+
+class Picamera2Source:
+    """Cámara CSI de Raspberry Pi (libcamera) con la misma interfaz que cv2.VideoCapture."""
+
+    def __init__(self, index: int, width: int, height: int) -> None:
+        from picamera2 import Picamera2
+        self.cam = Picamera2(index)
+        cfg = self.cam.create_video_configuration(main={"size": (width, height), "format": "RGB888"}, buffer_count=2)
+        self.cam.configure(cfg)
+        self.cam.start()
+
+    def isOpened(self) -> bool:  # noqa: N802 (misma API que OpenCV)
+        return True
+
+    def read(self) -> tuple[bool, np.ndarray | None]:
+        try:
+            return True, self.cam.capture_array("main")  # RGB888 de picamera2 = orden BGR de OpenCV
+        except Exception:
+            return False, None
+
+    def set(self, *_args) -> bool:
+        return False
+
+    def release(self) -> None:
+        try:
+            self.cam.stop()
+            self.cam.close()
+        except Exception:
+            pass
 
 
 class SyntheticSource:
@@ -194,6 +236,13 @@ class CameraService:
             cap = cv2.VideoCapture(source)
             self.backend = "archivo/url"
             return cap if cap.isOpened() else None
+        if compat.use_picamera2():
+            try:
+                self.backend = "picamera2"
+                return Picamera2Source(self.index, self.width, self.height)
+            except Exception as exc:
+                log.warning("No se pudo abrir la cámara CSI %s: %s", self.index, exc)
+                return None
         # V4L2 en Raspberry Pi OS; DirectShow → Media Foundation en Windows.
         cap = None
         for name, api in compat.camera_backends(cv2):

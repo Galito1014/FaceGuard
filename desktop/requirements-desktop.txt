@@ -1,0 +1,7 @@
+# FaceGuard AI Desktop — dependencias para empaquetar la app de escritorio.
+# Incluye las del núcleo más la ventana nativa y el empaquetador.
+-r ../backend/requirements.txt
+pywebview>=5.3 ; sys_platform == "win32"   # ventana nativa con WebView2 (incluido en Windows 10/11)
+# En Linux no se empaqueta ningún motor web: se usa Chromium/Chrome/Edge/Brave en modo
+# aplicación o el navegador predeterminado (paquete más liviano y sin licencias GPL).
+pyinstaller>=6.10

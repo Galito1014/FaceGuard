@@ -11,6 +11,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app import __version__
+
 BASE_DIR = Path(__file__).resolve().parent.parent  # .../backend
 
 
@@ -57,10 +59,22 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "si", "sí", "on"}
 
 
+def _default_edition() -> str:
+    """desktop (app instalada), pi (Raspberry Pi) o server (ejecución manual)."""
+    value = os.getenv("FACEGUARD_EDITION", "").strip().lower()
+    return value if value in {"desktop", "pi", "server"} else "server"
+
+
 @dataclass(frozen=True)
 class Config:
     app_name: str = "FaceGuard AI"
-    version: str = "1.0.0"
+    version: str = __version__
+    edition: str = field(default_factory=_default_edition)
+    # Redes desde las que se acepta el panel: "local" (loopback + redes privadas),
+    # "loopback", "all" o una lista de CIDR separada por comas.
+    allowed_networks: str = field(default_factory=lambda: os.getenv("FACEGUARD_ALLOWED_NETWORKS", "local"))
+    # Repositorio de GitHub donde se publican las versiones (comprobación de actualizaciones).
+    update_repo: str = field(default_factory=lambda: os.getenv("FACEGUARD_UPDATE_REPO", "Galito1014/FaceGuard"))
     data_dir: Path = field(default_factory=lambda: _env_path("FACEGUARD_DATA_DIR", BASE_DIR / "data"))
     models_dir: Path = field(default_factory=lambda: _env_path("FACEGUARD_MODELS_DIR", BASE_DIR / "models"))
     frontend_dist: Path = field(
@@ -74,8 +88,8 @@ class Config:
     # Desactiva hilos de cámara/procesamiento (útil para pruebas automáticas).
     disable_workers: bool = field(default_factory=lambda: _env_bool("FACEGUARD_DISABLE_WORKERS", False))
     initial_admin_password: str | None = field(default_factory=lambda: os.getenv("FACEGUARD_ADMIN_PASSWORD"))
-    # Intentos de inicio de sesión: 0 = ilimitados, sin espera.
-    login_max_attempts: int = field(default_factory=lambda: int(os.getenv("FACEGUARD_LOGIN_MAX_ATTEMPTS", "0")))
+    # Intentos fallidos de inicio de sesión antes de esperar (0 = ilimitados).
+    login_max_attempts: int = field(default_factory=lambda: int(os.getenv("FACEGUARD_LOGIN_MAX_ATTEMPTS", "5")))
     login_lock_seconds: int = field(default_factory=lambda: int(os.getenv("FACEGUARD_LOGIN_LOCK_SECONDS", "300")))
     # 0 = el admin inicial entra directo con FACEGUARD_ADMIN_PASSWORD, sin cambio obligatorio.
     force_password_change: bool = field(default_factory=lambda: _env_bool("FACEGUARD_FORCE_PASSWORD_CHANGE", True))

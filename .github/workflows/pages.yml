@@ -1,0 +1,43 @@
+# Publica la página de descargas (site/) en GitHub Pages.
+# Activar una vez: Settings → Pages → Source: "GitHub Actions".
+name: Página de descargas
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "docs/img/**", ".github/workflows/pages.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar sitio
+        run: |
+          mkdir -p _site/img
+          cp -r site/. _site/
+          cp frontend/public/favicon.svg _site/favicon.svg
+          cp docs/img/02-dashboard.png docs/img/03-monitoreo.png docs/img/04-registro-calidad.png \
+             docs/img/06-alertas.png docs/img/07-revision-alerta.png docs/img/09-configuracion.png \
+             docs/img/14-asistente-inicial.png _site/img/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

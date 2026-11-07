@@ -20,3 +20,7 @@ frontend/*.tsbuildinfo
 .DS_Store
 *.log
 .env
+# Empaquetado
+build/
+*.spec.bak
+setup_code.txt

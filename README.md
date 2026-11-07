@@ -18,6 +18,25 @@ Una cámara USB vigila la entrada. La Raspberry Pi detecta los rostros y los com
 
 ---
 
+## Descargar e instalar
+
+FaceGuard AI es gratuito y de código abierto (licencia [Apache 2.0](LICENSE)). Tiene dos modalidades con el mismo núcleo:
+
+| Modalidad | Para quién | Cómo se instala |
+|---|---|---|
+| **FaceGuard AI Desktop** | Usarlo en su computadora con la webcam o una cámara USB | **Windows 10/11:** descargue `FaceGuardAI-Desktop-…-windows-x64-setup.exe` y ábralo. **Linux:** `.deb` (Ubuntu, Debian, Mint) o AppImage. Se abre como cualquier programa, sin Python ni terminal |
+| **FaceGuard AI Raspberry Pi** | Un sistema fijo y autónomo en una entrada, administrado desde el navegador de su PC o teléfono en la red local | En Raspberry Pi OS de 64 bits: `curl -fsSL https://raw.githubusercontent.com/Galito1014/FaceGuard/main/installers/raspberry-pi/install.sh \| sudo bash` |
+
+Descargas en **[GitHub Releases](https://github.com/Galito1014/FaceGuard/releases/latest)** y en la página oficial (`site/`, publicada con GitHub Pages). Cada versión incluye `SHA256SUMS.txt` para verificar los archivos.
+
+Al abrirlo por primera vez, un **asistente** le guía para crear la cuenta administradora, elegir la cámara y configurar el reconocimiento, las alertas y la privacidad. Antes de usarlo con personas reales, lea la [política de privacidad](PRIVACY.md) y la [guía legal](docs/legal.md).
+
+![Asistente de configuración inicial](docs/img/14-asistente-inicial.png)
+
+Documentación: [desarrollo](docs/desarrollo.md) · [validación por plataforma](docs/validacion.md) · [seguridad](SECURITY.md) · [contribuir](CONTRIBUTING.md) · [cambios](CHANGELOG.md)
+
+---
+
 ## Contenido
 
 1. [El problema](#1-el-problema)
@@ -200,7 +219,7 @@ FaceGuard AI usa **un solo repositorio y una sola base de código** para Raspber
 
 Las dependencias están en **un único** `backend/requirements.txt`. Las diferencias se resuelven con marcadores de plataforma: `gpiozero` solo se instala en la Raspberry Pi (`aarch64`) y `uvicorn[standard]` omite `uvloop` en Windows. No hace falta un archivo distinto por sistema.
 
-> **El repositorio es privado.** Para clonarlo, la cuenta de GitHub debe tener acceso. En Windows, Git abre una ventana para iniciar sesión la primera vez. En la Raspberry Pi use un *token de acceso personal* como contraseña o ejecute `gh auth login` si tiene instalado GitHub CLI.
+> **¿Solo quiere usar FaceGuard AI?** Use los instaladores de [Descargar e instalar](#descargar-e-instalar). Esta sección explica cómo ejecutarlo desde el código fuente, para desarrollo o personalización.
 
 ---
 
@@ -293,7 +312,7 @@ Ajuste como mínimo:
 ```ini
 FACEGUARD_ADMIN_PASSWORD=FaceGuard2026        # mín. 10 caracteres con letras y números (solo primer arranque)
 FACEGUARD_FORCE_PASSWORD_CHANGE=0             # 0 = entrar directo · 1 = pedir cambiarla al primer ingreso
-FACEGUARD_LOGIN_MAX_ATTEMPTS=0                # 0 = intentos ilimitados, sin espera
+FACEGUARD_LOGIN_MAX_ATTEMPTS=5                # intentos fallidos antes de esperar 5 min (0 = ilimitados)
 FACEGUARD_HOST=127.0.0.1                      # 0.0.0.0 para abrir el panel desde otros equipos de la red
 FACEGUARD_PORT=8000
 FACEGUARD_CAMERA_BACKEND=auto                 # auto | dshow | msmf
@@ -324,7 +343,7 @@ python -m scripts.run --host 0.0.0.0 --port 8000
 # equivalente: uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Abra **http://localhost:8000** e ingrese con el usuario **`admin`** y la contraseña **`FaceGuard2026`** (la de `FACEGUARD_ADMIN_PASSWORD`). Con `FACEGUARD_FORCE_PASSWORD_CHANGE=0` entra directo; con `1` se le pide cambiarla. Si no definió la contraseña, búsquela en `backend\data\secret\initial_admin.txt` y borre el archivo después. Para detener el sistema, pulse `Ctrl+C`.
+Abra **http://localhost:8000** e ingrese con el usuario **`admin`** y la contraseña **`FaceGuard2026`** (la de `FACEGUARD_ADMIN_PASSWORD`). Con `FACEGUARD_FORCE_PASSWORD_CHANGE=0` entra directo; con `1` se le pide cambiarla. Si no definió la contraseña, el panel muestra el asistente de configuración inicial para crear la cuenta. Para detener el sistema, pulse `Ctrl+C`.
 
 Si usa `0.0.0.0`, Windows preguntará si permite el acceso en el Firewall: elija **Redes privadas**. Desde otro equipo, abra `http://<IP-de-la-PC>:8000`. Puede ver la IP con `ipconfig`.
 
@@ -478,7 +497,7 @@ Desde un equipo de la misma red, abra `http://<IP-de-la-Pi>:8000`. Puede ver la 
 ```bash
 cd ~/faceguard-ai
 sudo ./deploy/install.sh
-sudo cat /var/lib/faceguard/secret/initial_admin.txt    # contraseña inicial (borre el archivo después)
+sudo cat /var/lib/faceguard/secret/setup_code.txt      # código del asistente de configuración inicial
 ```
 
 `install.sh` crea el usuario de servicio `faceguard`, el entorno en `/opt/faceguard-ai/venv` y la carpeta de datos `/var/lib/faceguard` (permisos 700). También descarga y verifica los modelos y activa el servicio **systemd**, que arranca solo al encender la Pi y se reinicia si falla. No ejecute la versión manual y el servicio al mismo tiempo, porque ambos usan la cámara y el puerto 8000.
@@ -559,7 +578,10 @@ Se leen del entorno y de `backend/.env` (las del entorno tienen prioridad). El s
 | `FACEGUARD_FRONTEND_DIST` | `frontend/dist` | Frontend compilado |
 | `FACEGUARD_ADMIN_PASSWORD` | aleatoria | Contraseña de `admin` en el primer arranque (`backend/.env.example`: `FaceGuard2026`) |
 | `FACEGUARD_FORCE_PASSWORD_CHANGE` | `1` | `0` = el `admin` inicial entra directo, sin cambio obligatorio (así viene en `backend/.env.example`) |
-| `FACEGUARD_LOGIN_MAX_ATTEMPTS` | `0` | Intentos fallidos antes de bloquear; `0` = ilimitados y sin espera |
+| `FACEGUARD_LOGIN_MAX_ATTEMPTS` | `5` | Intentos fallidos antes de bloquear; `0` = ilimitados y sin espera |
+| `FACEGUARD_ALLOWED_NETWORKS` | `local` | Redes que pueden abrir el panel: `local` (este equipo + LAN), `loopback`, `all` o lista CIDR |
+| `FACEGUARD_EDITION` | `server` | `desktop`, `pi` o `server`; lo fijan los instaladores |
+| `FACEGUARD_UPDATE_REPO` | `Galito1014/FaceGuard` | Repositorio donde se buscan versiones nuevas (solo si se activa) |
 | `FACEGUARD_LOGIN_LOCK_SECONDS` | `300` | Duración del bloqueo cuando `FACEGUARD_LOGIN_MAX_ATTEMPTS` > 0 |
 | `FACEGUARD_HOST` / `FACEGUARD_PORT` | `127.0.0.1` / `8000` | Interfaz y puerto para `python -m scripts.run` (el servicio de la Pi usa `0.0.0.0`) |
 | `FACEGUARD_CAMERA_NAME` | `CAM-01 Entrada principal` | Nombre que aparece en eventos y reportes |
@@ -681,7 +703,7 @@ Los riesgos y las medidas están detallados en **[docs/seguridad-privacidad.md](
 - **Revisión humana obligatoria:** ninguna alerta dispara acciones automáticas contra una persona.
 - **Cifrado** de fotos, plantillas biométricas y capturas (Fernet). La clave nunca sale de la Pi.
 - **Mínimo de datos:** no se guardan imágenes de personas sin coincidencia. Los eventos, las imágenes y los registros vencen y se borran automáticamente.
-- **Control de acceso:** 4 roles, contraseñas con scrypt y sesiones seguras. Los intentos de inicio de sesión son ilimitados por defecto; el bloqueo por intentos fallidos (`FACEGUARD_LOGIN_MAX_ATTEMPTS`) y el cambio obligatorio de la contraseña inicial (`FACEGUARD_FORCE_PASSWORD_CHANGE`) se pueden activar.
+- **Control de acceso:** 4 roles, contraseñas con scrypt y sesiones seguras. Bloqueo de 5 minutos tras 5 intentos fallidos (`FACEGUARD_LOGIN_MAX_ATTEMPTS`). La cuenta inicial se crea en el asistente, protegido por un código de un solo uso cuando se accede desde otro equipo. El panel rechaza conexiones que no vengan del propio equipo o de la red local (`FACEGUARD_ALLOWED_NETWORKS`).
 - **Auditoría** de todas las acciones administrativas, incluso de cada vez que alguien abre una imagen.
 - **Funciona sin Internet** y dentro de la red local; el servicio corre con un usuario sin privilegios y con systemd endurecido.
 - **Límites reconocidos:** posibles sesgos del modelo, no detecta fotos impresas o en pantalla, y Bolivia aún no tiene una ley general de protección de datos.
@@ -717,8 +739,12 @@ faceguard-ai/
 │   └── requirements.txt         # dependencias únicas para Windows y Raspberry Pi
 ├── frontend/                    # React + TypeScript + Tailwind (se compila a frontend/dist)
 │   └── src/{pages,components,lib}
+├── desktop/                     # FaceGuard AI Desktop: lanzador y empaquetado (PyInstaller)
 ├── deploy/                      # Raspberry Pi: servicio systemd, install.sh, variables de entorno
-│   └── windows/                 # Windows: setup.ps1 (configuración automática) y run.ps1 (inicio)
+│   └── windows/                 # Windows desde el código: setup.ps1 y run.ps1
+├── installers/                  # windows/ (Inno Setup), linux/ (.deb y AppImage), raspberry-pi/ (instalador y paquete)
+├── site/                        # página de descargas (GitHub Pages)
+├── .github/workflows/           # CI, compilación de versiones y página
 └── docs/
     ├── img/                     # capturas y diagrama de arquitectura
     ├── diagramas/               # fuente Mermaid del diagrama
@@ -726,6 +752,9 @@ faceguard-ai/
     ├── pruebas.md               # evidencia de pruebas
     ├── hardware.md              # conexiones GPIO y ubicación de la cámara
     ├── seguridad-privacidad.md  # riesgos y medidas
+    ├── legal.md                 # guía legal por jurisdicción
+    ├── desarrollo.md            # guía para desarrolladores
+    ├── validacion.md            # pruebas por plataforma antes de publicar
     └── presentacion/            # ← diapositivas o póster del grupo
 ```
 

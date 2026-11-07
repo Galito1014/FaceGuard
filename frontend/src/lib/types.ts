@@ -241,6 +241,7 @@ export interface Settings {
   retention_days_audit: number;
   retention_days_expired_authorized: number;
   demo_mode: boolean;
+  update_check: boolean;
 }
 
 export interface UserRow {

@@ -9,7 +9,9 @@ Windows 10/11. Este módulo concentra lo que cambia entre ellas:
 * si tiene sentido intentar usar los pines GPIO (solo en Linux).
 
 El backend de la cámara se puede forzar con la variable de entorno
-FACEGUARD_CAMERA_BACKEND = auto | v4l2 | dshow | msmf | avfoundation | any.
+FACEGUARD_CAMERA_BACKEND = auto | v4l2 | dshow | msmf | avfoundation | any | picamera2.
+Con "picamera2" se usa una cámara CSI de Raspberry Pi (módulo de cámara oficial)
+a través de libcamera, en lugar de OpenCV.
 """
 from __future__ import annotations
 
@@ -61,6 +63,11 @@ def camera_backend_names() -> list[str]:
     return list(_DEFAULT_ORDER.get(os_name(), ["any"]))
 
 
+def use_picamera2() -> bool:
+    """True si se pidió una cámara CSI (Raspberry Pi) con FACEGUARD_CAMERA_BACKEND=picamera2."""
+    return os.getenv("FACEGUARD_CAMERA_BACKEND", "auto").strip().lower() == "picamera2"
+
+
 def camera_backends(cv2_module) -> list[tuple[str, int]]:
     """Lista de (nombre, constante de OpenCV) disponibles en esta instalación."""
     result = []
@@ -73,6 +80,8 @@ def camera_backends(cv2_module) -> list[tuple[str, int]]:
 
 def camera_prefix() -> str:
     """Prefijo con el que se muestra el índice de la cámara en la interfaz."""
+    if use_picamera2():
+        return "CSI "
     return "/dev/video" if IS_LINUX else "Cámara "
 
 

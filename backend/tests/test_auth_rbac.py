@@ -4,15 +4,17 @@ from app.main import app
 from tests.conftest import make_user
 
 
-def test_login_incorrecto_intentos_ilimitados(client):
+def test_intentos_ilimitados_si_se_desactiva(client, monkeypatch):
+    from app.core.security import throttle
+    monkeypatch.setattr(throttle, "MAX_ATTEMPTS", 0)
     c = TestClient(app)
-    for _ in range(10):  # sin bloqueo ni espera por defecto
+    for _ in range(10):
         assert c.post("/api/auth/login", json={"username": "nadie", "password": "x"}).status_code == 401
 
 
-def test_bloqueo_opcional(client, monkeypatch):
+def test_bloqueo_por_defecto_tras_5_intentos(client):
     from app.core.security import throttle
-    monkeypatch.setattr(throttle, "MAX_ATTEMPTS", 5)
+    assert throttle.MAX_ATTEMPTS == 5
     c = TestClient(app)
     for _ in range(5):
         assert c.post("/api/auth/login", json={"username": "otro", "password": "x"}).status_code == 401
