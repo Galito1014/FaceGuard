@@ -417,7 +417,7 @@ function EntryForm({ entry, defaultClassification, onClose }: { entry: Blacklist
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             {restricted && (
-              <Field label="Nivel de alerta" required hint="El buzzer suena desde el nivel configurado (por defecto, medio).">
+              <Field label="Nivel de alerta" required hint="El buzzer suena desde el nivel configurado (por defecto, con todos los niveles).">
                 <Select value={form.alert_level} onChange={set("alert_level")}>
                   <option value="bajo">Bajo</option><option value="medio">Medio</option><option value="alto">Alto</option>
                 </Select>

@@ -70,6 +70,12 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           case "camera":
             qc.invalidateQueries({ queryKey: ["camera"] });
             break;
+          case "alarm":
+            // El LED o el buzzer cambiaron: refresca el estado y el historial sin esperar al siguiente "status".
+            setStatus((prev) => (prev ? { ...prev, gpio: data } : prev));
+            qc.invalidateQueries({ queryKey: ["hardware"] });
+            qc.invalidateQueries({ queryKey: ["hardware-activations"] });
+            break;
           case "event":
             qc.invalidateQueries({ queryKey: ["events"] });
             qc.invalidateQueries({ queryKey: ["summary"] });

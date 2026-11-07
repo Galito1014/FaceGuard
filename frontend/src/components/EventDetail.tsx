@@ -7,6 +7,11 @@ import { fmtDateTime, fmtScore } from "@/lib/format";
 import type { EventDetail, ReviewStatus } from "@/lib/types";
 import { Badge, Button, ErrorNote, Field, LevelBadge, Modal, ReviewBadge, SimBadge, Spinner, Textarea } from "./ui";
 
+const ALARM_LABEL: Record<string, string> = {
+  activada: "Activada", simulada: "Simulada (sin GPIO)", desactivada: "Desactivada en la configuración",
+  sin_notificacion: "No activada (alertas apagadas)", error: "Error de hardware",
+};
+
 function ProtectedImage({ src, label }: { src: string; label: string }) {
   const [show, setShow] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -81,6 +86,7 @@ export default function EventDetailModal({ id, onClose }: { id: number; onClose:
                 ["Similitud", <span className="font-mono">{fmtScore(e.score)}</span>],
                 ["Nivel", <LevelBadge level={e.level} />],
                 ["Estado de revisión", <ReviewBadge status={e.review_status} />],
+                ...(e.type === "coincidencia" ? [["Alarma física (LED / buzzer)", ALARM_LABEL[e.alarm_state ?? ""] ?? "—"]] : []),
                 ["Responsable", e.reviewer_name ?? "—"],
                 ["Revisado", fmtDateTime(e.reviewed_at)],
               ].map(([k, v], i) => (
