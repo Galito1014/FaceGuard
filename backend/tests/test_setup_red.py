@@ -84,7 +84,7 @@ SCRIPT = textwrap.dedent('''
         assert local.get("/api/setup/status").json()["code_required"] is False
         assert lan.get("/api/auth/me").status_code == 401
         code = (config.secret_dir / "setup_code.txt").read_text().strip()
-        body = {"username": "dueno", "full_name": "Dueño", "password": "ClaveSegura2026", "privacy_ack": True,
+        body = {"username": "dueno", "full_name": "Dueño", "password": "ClaveSegura2026", "privacy_ack": True,  # gitleaks:allow (contraseña ficticia de prueba)
                 "settings": {"camera_index": 1, "match_threshold": 0.45, "update_check": False}}
         # Sin código o con código incorrecto desde la LAN: rechazado
         assert lan.post("/api/setup", json=body).status_code == 403
