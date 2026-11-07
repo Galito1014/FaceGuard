@@ -28,6 +28,7 @@ import atexit
 import logging
 import threading
 import time
+import warnings
 from typing import Any, Callable
 
 from app.core import compat
@@ -95,9 +96,10 @@ def explain_gpio_error(exc: BaseException, led_pin: int, buzzer_pin: int) -> str
     if isinstance(exc, PermissionError) or "permission" in low or "eacces" in low:
         return ("Sin permiso para abrir /dev/gpiochip*. Agregue el usuario al grupo gpio "
                 "(sudo usermod -aG gpio faceguard) y reinicie el servicio.")
-    if "badpinfactory" in low or "lgpio" in low or "no module" in low:
-        return ("gpiozero no encontró un backend de pines. Instale lgpio (sudo apt install python3-lgpio) y use un "
-                "entorno virtual creado con --system-site-packages (deploy/install.sh ya lo hace).")
+    if "badpinfactory" in low or "lgpio" in low or "no module" in low or "pin factory" in low:
+        return ("gpiozero no pudo abrir los pines. Causas habituales: (1) el servicio no tiene LG_WD apuntando a una "
+                "carpeta con escritura (vuelva a ejecutar sudo ./deploy/install.sh); (2) falta python3-lgpio "
+                "(sudo apt install python3-lgpio) o el entorno virtual no usa --system-site-packages.")
     if "pwm" in low:
         return f"El pin GPIO{buzzer_pin} no admite PWM con este backend ({name}: {text}). Pruebe el buzzer como activo."
     return f"No se pudieron abrir los pines GPIO ({name}: {text})"
@@ -146,14 +148,19 @@ class AlarmController:
                 self._notify()
                 return
             led = buzzer = None
+            fallback_log: list[warnings.WarningMessage] = []
             try:
                 from gpiozero import DigitalOutputDevice, PWMOutputDevice  # type: ignore
 
-                led = DigitalOutputDevice(led_pin, active_high=True, initial_value=False)
-                if buzzer_type == "pasivo":
-                    buzzer = PWMOutputDevice(buzzer_pin, active_high=True, initial_value=0, frequency=buzzer_frequency)
-                else:
-                    buzzer = DigitalOutputDevice(buzzer_pin, active_high=True, initial_value=False)
+                # gpiozero prueba varios backends y solo avisa (warning) por qué falló cada uno;
+                # se guardan esos motivos para mostrar la causa real en el panel.
+                with warnings.catch_warnings(record=True) as fallback_log:
+                    warnings.simplefilter("always")
+                    led = DigitalOutputDevice(led_pin, active_high=True, initial_value=False)
+                    if buzzer_type == "pasivo":
+                        buzzer = PWMOutputDevice(buzzer_pin, active_high=True, initial_value=0, frequency=buzzer_frequency)
+                    else:
+                        buzzer = DigitalOutputDevice(buzzer_pin, active_high=True, initial_value=False)
                 self._led, self._buzzer = led, buzzer
                 self.mode, self.error = "hardware", None
                 log.info("GPIO listo: LED=GPIO%s (pin %s), buzzer %s=GPIO%s (pin %s)", led_pin, physical_pin(led_pin),
@@ -168,6 +175,9 @@ class AlarmController:
                 self._led = self._buzzer = None
                 self.mode = "error"
                 self.error = explain_gpio_error(exc, led_pin, buzzer_pin)
+                causes = [str(w.message) for w in fallback_log if "Falling back" in str(w.message)]
+                if causes:
+                    self.error += " Detalle: " + " | ".join(causes)
                 log.error("Alarma física sin hardware: %s", self.error)
             self._notify()
 

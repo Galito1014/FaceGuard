@@ -12,6 +12,10 @@ Group=faceguard
 SupplementaryGroups=video gpio
 WorkingDirectory=/opt/faceguard-ai/backend
 EnvironmentFile=-/etc/faceguard/faceguard.env
+# lgpio crea archivos de notificación (.lgd-nfy*) en su carpeta de trabajo. Con
+# ProtectSystem=strict la carpeta del programa es de solo lectura y gpiozero no
+# podría abrir los pines del LED y el buzzer.
+Environment=LG_WD=/var/lib/faceguard
 ExecStart=/opt/faceguard-ai/venv/bin/uvicorn app.main:app --host ${FACEGUARD_HOST} --port ${FACEGUARD_PORT} --workers 1 --no-access-log
 Restart=always
 RestartSec=5
