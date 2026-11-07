@@ -1,0 +1,43 @@
+# Temporal: compila el instalador de Windows para probarlo en un equipo real.
+name: Vista previa Windows
+on:
+  push:
+    branches: [vista-previa-windows]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Panel web
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Modelos y empaquetado
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r desktop/requirements-desktop.txt
+          cd backend; python -m scripts.download_models; cd ..
+          pyinstaller desktop/faceguard.spec --noconfirm --distpath build/dist --workpath build/work
+      - name: Autoprueba
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath build\dist\FaceGuardAI\FaceGuardAI.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+      - name: Instalador
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.1.0" `
+            "/DSourceDir=$PWD\build\dist\FaceGuardAI" "/DOutputDir=$PWD\build\release" installers\windows\faceguard.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: build/release/*.exe
+          retention-days: 3
