@@ -4,7 +4,7 @@ on:
   push:
     branches: [vista-previa-windows]
 permissions:
-  contents: read
+  contents: write
 jobs:
   build:
     runs-on: windows-latest
@@ -41,3 +41,11 @@ jobs:
           name: instalador-windows
           path: build/release/*.exe
           retention-days: 3
+      - name: Borrador privado para descargar el instalador
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete vista-previa-windows --yes --cleanup-tag 2>$null
+          $exe = (Get-ChildItem build\release\*.exe | Select-Object -First 1).FullName
+          gh release create vista-previa-windows $exe --draft --target vista-previa-windows --title "Vista previa Windows (temporal)" --notes "Borrador temporal para pruebas. Se borrará."
