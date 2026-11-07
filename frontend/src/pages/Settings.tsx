@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
-  BellRing, BrainCircuit, Cctv, Database, FlaskConical, HardDrive, Lightbulb, RefreshCw, RotateCcw, Save, Server,
-  Settings as SettingsIcon, Trash2, Zap,
+  BellRing, BrainCircuit, Cctv, Database, Download, ExternalLink, FlaskConical, HardDrive, Lightbulb, RefreshCw, RotateCcw,
+  Save, Server, Settings as SettingsIcon, Trash2, Zap,
 } from "lucide-react";
 import { get, post, put } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -163,7 +163,10 @@ export default function SettingsPage() {
               </p>
             </Card>
           )}
-          {tab === "system" && <SystemTab canControl={can("system.control")} />}
+          {tab === "system" && <>
+            <UpdatesCard enabled={q.data.values.update_check} editable={editable} onToggle={(v) => save.mutate({ update_check: v })} />
+            <div className="mt-4"><SystemTab canControl={can("system.control")} /></div>
+          </>}
           {tab === "demo" && <DemoTab demoMode={q.data.values.demo_mode} editable={editable} onToggle={(v) => save.mutate({ demo_mode: v })} />}
         </div>
       </div>
@@ -212,6 +215,48 @@ function AlertsTab({ draft, set, editable, gpio }: { draft: Settings; set: <K ex
   );
 }
 
+interface UpdateInfo {
+  current: string; edition: string; enabled: boolean; latest?: string | null; update_available: boolean; url: string;
+  published_at?: string | null; error?: string | null;
+}
+
+function UpdatesCard({ enabled, editable, onToggle }: { enabled: boolean; editable: boolean; onToggle: (v: boolean) => void }) {
+  const upd = useQuery({ queryKey: ["update", enabled], queryFn: () => get<UpdateInfo>("/api/system/update") });
+  const recheck = useMutation({ mutationFn: () => get<UpdateInfo>("/api/system/update?force=true"), onSuccess: () => upd.refetch() });
+  const u = recheck.data ?? upd.data;
+  return (
+    <Card title="Actualizaciones" icon={Download}
+      actions={enabled && <Button size="sm" variant="ghost" icon={RefreshCw} loading={recheck.isPending} onClick={() => recheck.mutate()}>Comprobar ahora</Button>}>
+      <div className="max-w-3xl space-y-4">
+        <Toggle checked={enabled} disabled={!editable} onChange={onToggle} label="Buscar actualizaciones en GitHub"
+          description="Solo consulta el número de la última versión publicada. Nunca envía imágenes ni datos de esta instalación." />
+        {u && (
+          <div className="text-sm text-ink-200">
+            <p>Versión instalada: <span className="font-mono">v{u.current}</span>
+              {u.enabled && u.latest && <> · última publicada: <span className="font-mono">{u.latest}</span></>}</p>
+            {u.error && <p className="mt-1 text-xs text-warn-400">{u.error}</p>}
+            {u.update_available ? (
+              <div className="mt-3 rounded-lg border border-volt-500/40 bg-volt-500/10 p-3 text-sm">
+                <p className="font-medium text-white">Hay una nueva versión disponible ({u.latest}).</p>
+                <p className="mt-1 text-xs text-ink-300">
+                  {u.edition === "pi"
+                    ? "En la Raspberry Pi ejecute: curl -fsSL https://raw.githubusercontent.com/Galito1014/FaceGuard/main/installers/raspberry-pi/install.sh | sudo bash"
+                    : "Descargue el instalador e instálelo encima de la versión actual. Sus datos (personas, historial y configuración) se conservan."}
+                </p>
+                <a href={u.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-volt-300 hover:underline">
+                  Ver la versión en GitHub <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            ) : u.enabled && u.latest && !u.error ? (
+              <p className="mt-1 text-xs text-ok-400">FaceGuard AI está actualizado.</p>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function SystemTab({ canControl }: { canControl: boolean }) {
   const toast = useToast();
   const info = useQuery({ queryKey: ["sysinfo"], queryFn: () => get<SysInfo>("/api/system/info"), refetchInterval: 10000 });
@@ -227,7 +272,7 @@ function SystemTab({ canControl }: { canControl: boolean }) {
   const d = info.data;
   return (
     <div className="space-y-4">
-      <Card title="Raspberry Pi" icon={HardDrive}
+      <Card title={d?.device.is_raspberry_pi ? "Raspberry Pi" : "Equipo"} icon={HardDrive}
         actions={canControl && <>
           <Button size="sm" icon={RefreshCw} loading={restart.isPending} onClick={() => restart.mutate()}>Reiniciar motor facial</Button>
           <Button size="sm" icon={Trash2} loading={retention.isPending} onClick={() => retention.mutate()}>Ejecutar limpieza</Button>

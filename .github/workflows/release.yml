@@ -1,0 +1,262 @@
+# Genera los instaladores y crea un borrador de versión en GitHub Releases.
+#
+# Para publicar una versión:
+#   1. Suba el número en backend/app/__init__.py (__version__ = "1.2.0") y en CHANGELOG.md.
+#   2. git tag v1.2.0 && git push origin v1.2.0
+#   3. Revise el borrador en GitHub → Releases y pulse "Publish release".
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión a compilar sin publicar (p. ej. 1.2.0-test)"
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  prepare:
+    name: Preparar
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        name: Versión
+        run: |
+          CODE=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' backend/app/__init__.py)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [ "$TAG" != "$CODE" ]; then
+              echo "La etiqueta v$TAG no coincide con __version__ = $CODE en backend/app/__init__.py"; exit 1
+            fi
+            echo "version=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Compilar el panel web
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Modelos (con verificación SHA-256)
+        working-directory: backend
+        run: python -m scripts.download_models
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shared
+          path: |
+            frontend/dist
+            backend/models/*.onnx
+
+  desktop-windows:
+    name: Desktop · Windows x64
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            desktop/requirements-desktop.txt
+      - name: Pruebas del núcleo
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+          cd backend; python -m pytest -q
+      - name: Empaquetar (PyInstaller)
+        run: |
+          pip install -r desktop/requirements-desktop.txt
+          pyinstaller desktop/faceguard.spec --noconfirm --distpath build/dist --workpath build/work
+      - name: Autoprueba del paquete
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath build\dist\FaceGuardAI\FaceGuardAI.exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-ChildItem -Recurse $env:TEMP -Filter faceguard.log | Get-Content -Tail 50; exit 1 }
+      - name: Instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ needs.prepare.outputs.version }}" `
+            "/DSourceDir=$PWD\build\dist\FaceGuardAI" "/DOutputDir=$PWD\build\release" installers\windows\faceguard.iss
+      - name: Prueba de instalación silenciosa
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem build\release\*.exe | Select-Object -First 1
+          $p = Start-Process $setup.FullName -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { exit 1 }
+          $exe = "$env:LOCALAPPDATA\Programs\FaceGuard AI\FaceGuardAI.exe"
+          if (-not (Test-Path $exe)) { Write-Error "No se instaló en $exe"; exit 1 }
+          $t = Start-Process $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($t.ExitCode -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: build/release/*.exe
+
+  desktop-linux:
+    name: Desktop · Linux x86_64
+    needs: prepare
+    # 22.04: glibc más antigua = el paquete funciona en más distribuciones
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            desktop/requirements-desktop.txt
+      - name: Empaquetar (PyInstaller)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r desktop/requirements-desktop.txt
+          pyinstaller desktop/faceguard.spec --noconfirm --distpath build/dist --workpath build/work
+          build/dist/FaceGuardAI/FaceGuardAI --self-test
+      - name: AppImage y .deb
+        run: |
+          sudo apt-get update && sudo apt-get install -y libfuse2
+          installers/linux/build-linux.sh "${{ needs.prepare.outputs.version }}"
+      - name: Prueba de instalación del .deb
+        run: |
+          sudo apt-get install -y ./build/release/*.deb
+          faceguard-ai --self-test
+          sudo apt-get remove -y faceguard-ai
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            build/release/*.deb
+            build/release/*.AppImage
+
+  raspberry-pi:
+    name: Raspberry Pi · paquete arm64
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: shared
+      - run: installers/raspberry-pi/build-package.sh "${{ needs.prepare.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: raspberry-pi
+          path: build/release/*.tar.gz
+
+  raspberry-pi-install-test:
+    name: Raspberry Pi · prueba de instalación (ARM64)
+    needs: [prepare, raspberry-pi]
+    # Ubuntu ARM64, no Raspberry Pi OS: valida instalador, servicio systemd,
+    # inicio automático, asistente y actualización, pero no cámara ni GPIO reales.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: raspberry-pi
+          path: pkg
+      - name: Instalación desde cero
+        run: |
+          cd pkg && sha256sum -- *.tar.gz > SHA256SUMS.txt && cd ..
+          sudo installers/raspberry-pi/install.sh --file pkg/*.tar.gz
+          systemctl is-enabled faceguard
+          systemctl is-active faceguard
+          curl -fsS http://127.0.0.1:8000/api/health
+          curl -fsS http://127.0.0.1:8000/api/setup/status | grep -q '"needs_setup":true'
+          sudo test -s /var/lib/faceguard/secret/setup_code.txt
+      - name: Paquete modificado → se rechaza
+        run: |
+          cp pkg/*.tar.gz /tmp/x.tar.gz && echo basura >> /tmp/x.tar.gz
+          cp pkg/SHA256SUMS.txt /tmp/SHA256SUMS.txt
+          sed -i "s/ .*\.tar\.gz$/ x.tar.gz/" /tmp/SHA256SUMS.txt
+          if sudo installers/raspberry-pi/install.sh --file /tmp/x.tar.gz; then exit 1; fi
+      - name: Recuperación automática tras un fallo
+        run: |
+          PID=$(systemctl show -p MainPID --value faceguard)
+          sudo kill -9 "$PID"
+          for _ in $(seq 1 30); do curl -fs http://127.0.0.1:8000/api/health && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8000/api/health
+      - name: Actualización conservando los datos
+        run: |
+          sudo installers/raspberry-pi/install.sh --file pkg/*.tar.gz
+          sudo ls /var/lib/faceguard/backups/ | grep -q antes-de-actualizar
+          curl -fsS http://127.0.0.1:8000/api/health
+      - name: Registro del servicio
+        if: always()
+        run: sudo journalctl -u faceguard -n 80 --no-pager || true
+
+  publish:
+    name: Borrador en GitHub Releases
+    needs: [prepare, desktop-windows, desktop-linux, raspberry-pi, raspberry-pi-install-test]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "{windows,linux,raspberry-pi}"
+          merge-multiple: true
+      - name: Sumas SHA-256
+        working-directory: dist
+        run: |
+          sha256sum -- * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Notas de la versión
+        run: |
+          V="${{ needs.prepare.outputs.version }}"
+          # Sección de esta versión en CHANGELOG.md (si existe)
+          awk -v v="## [$V]" 'index($0,v)==1{f=1;next} /^## \[/{if(f)exit} f' CHANGELOG.md > notes.md || true
+          cat >> notes.md <<EOF
+
+          ## Descargas
+
+          | Plataforma | Archivo |
+          |---|---|
+          | Windows 10/11 (64 bits) | \`FaceGuardAI-Desktop-$V-windows-x64-setup.exe\` |
+          | Linux x86_64 (Ubuntu, Debian, Mint…) | \`FaceGuardAI-Desktop-$V-linux-amd64.deb\` |
+          | Linux x86_64 (cualquier distribución) | \`FaceGuardAI-Desktop-$V-linux-x86_64.AppImage\` |
+          | Raspberry Pi 4/5 (Raspberry Pi OS 64 bits) | \`FaceGuardAI-RaspberryPi-$V-arm64.tar.gz\` — instale con el comando de abajo |
+
+          **Raspberry Pi:**
+          \`\`\`bash
+          curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/installers/raspberry-pi/install.sh | sudo bash -s -- --version v$V
+          \`\`\`
+
+          Compruebe la integridad de cualquier archivo con \`SHA256SUMS.txt\`. Actualizar conserva sus datos.
+          EOF
+      - name: Crear borrador
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRE=""
+          case "${{ needs.prepare.outputs.version }}" in *-*) PRE="--prerelease" ;; esac
+          gh release create "${GITHUB_REF_NAME}" dist/* --draft $PRE \
+            --title "FaceGuard AI ${{ needs.prepare.outputs.version }}" --notes-file notes.md

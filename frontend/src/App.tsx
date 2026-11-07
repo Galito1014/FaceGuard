@@ -1,4 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { get } from "./lib/api";
 import { useAuth } from "./lib/auth";
 import { RealtimeProvider } from "./lib/realtime";
 import Layout from "./components/Layout";
@@ -15,6 +17,7 @@ import UsersPage from "./pages/Users";
 import AuditPage from "./pages/Audit";
 import SettingsPage from "./pages/Settings";
 import NotFoundPage from "./pages/NotFound";
+import SetupPage, { type SetupStatus } from "./pages/Setup";
 
 function Guard({ perm, children }: { perm: string; children: JSX.Element }) {
   const { can } = useAuth();
@@ -23,7 +26,15 @@ function Guard({ perm, children }: { perm: string; children: JSX.Element }) {
 
 export default function App() {
   const { me, loading } = useAuth();
-  if (loading) return <div className="grid h-full place-items-center"><Spinner /></div>;
+  const setup = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: () => get<SetupStatus>("/api/setup/status"),
+    enabled: !loading && !me,
+    staleTime: Infinity,
+    retry: 1,
+  });
+  if (loading || (!me && setup.isLoading)) return <div className="grid h-full place-items-center"><Spinner /></div>;
+  if (!me && setup.data?.needs_setup) return <SetupPage status={setup.data} />;
   if (!me) {
     return (
       <Routes>

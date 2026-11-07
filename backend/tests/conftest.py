@@ -15,7 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+import app.main as main_module  # noqa: E402
 from app.main import app  # noqa: E402
+
+# El cliente de pruebas se presenta como "testclient" (no es una IP). La
+# restricción de redes se prueba aparte en test_setup_red.py.
+main_module.ALLOWED_NETWORKS = None
 
 ADMIN_PW = "SuperClave2026"
 

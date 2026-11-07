@@ -1,0 +1,9 @@
+FaceGuard AI
+Copyright 2026 The FaceGuard AI Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It includes the YuNet face detection and SFace face recognition models from
+OpenCV Zoo (https://github.com/opencv/opencv_zoo), also licensed under the
+Apache License, Version 2.0. See THIRD_PARTY_NOTICES.md for all third-party
+components and their licenses.

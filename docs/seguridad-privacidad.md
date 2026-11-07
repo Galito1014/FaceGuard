@@ -13,9 +13,10 @@ Los datos biométricos (fotografías y plantillas faciales) son **datos personal
 | **Falso positivo**: el sistema confunde a un residente o visitante con alguien de la lista | Trato injusto o discriminatorio | Umbral configurable (por defecto 0,42, más estricto que el recomendado); confirmación en N fotogramas seguidos; tamaño mínimo de rostro; revisión humana obligatoria con observaciones; estado “Falso positivo” para medir la tasa de error; pantalla de revisión con la imagen detectada y la registrada lado a lado |
 | **Registro sin base legal o por motivos discriminatorios** | Vigilancia abusiva | Campos obligatorios de “motivo documentado” y “base legal”; casilla de confirmación de autorización; solo administradores registran; historial de cambios por registro; vencimiento obligatorio |
 | **Robo de la tarjeta SD o copia de archivos** | Filtración de biometría | Fotos, plantillas y capturas cifradas con Fernet (AES-128 + HMAC); clave en `secret/fernet.key` con permisos 600; carpeta de datos 700; servicio con usuario sin privilegios |
-| **Acceso no autorizado al panel** | Consulta o manipulación de la lista | Contraseñas con scrypt; mínimo 10 caracteres; cambio obligatorio de la contraseña temporal y bloqueo por intentos fallidos **opcionales** (`FACEGUARD_FORCE_PASSWORD_CHANGE`, `FACEGUARD_LOGIN_MAX_ATTEMPTS`; por defecto los intentos son ilimitados); sesiones de 8 h en cookie `httpOnly` y `SameSite=Strict`; cierre de las demás sesiones al cambiar la contraseña; 4 roles con permisos mínimos |
+| **Acceso no autorizado al panel** | Consulta o manipulación de la lista | Contraseñas con scrypt; mínimo 10 caracteres; bloqueo de 5 minutos tras 5 intentos fallidos (`FACEGUARD_LOGIN_MAX_ATTEMPTS`); cuenta inicial creada en un asistente protegido por un código de configuración de un solo uso; sesiones de 8 h en cookie `httpOnly` y `SameSite=Strict`; cierre de las demás sesiones al cambiar la contraseña; 4 roles con permisos mínimos |
 | **Abuso por parte de un usuario autorizado** | Uso indebido de imágenes | Las imágenes no se muestran automáticamente (se hace clic en “Mostrar imagen”); cada visualización de una imagen de alerta queda auditada; el auditor no ve fotos; las exportaciones quedan auditadas y el PDF se marca como confidencial |
 | **Conservación excesiva** | Vigilancia permanente | Eventos: 30 días; imágenes de alertas: 15 días; auditoría: 365 días (todo configurable). Los registros de la lista vencen y se desactivan solos. Borrado con sobrescritura de archivos |
+| **Exposición involuntaria a Internet** | Acceso desde cualquier parte del mundo | El panel rechaza (403) las conexiones que no vienen del propio equipo o de una red privada (`FACEGUARD_ALLOWED_NETWORKS=local`), aunque alguien abra el puerto en el router. FaceGuard AI Desktop solo escucha en `127.0.0.1` y solo acepta el propio equipo |
 | **Interceptación en la red** | Robo de la sesión o del video | El sistema funciona sin Internet, solo en la red local. Recomendado: red Wi-Fi exclusiva para seguridad o cable Ethernet y, si se publica fuera, un proxy HTTPS (`FACEGUARD_SECURE_COOKIES=1`) |
 | **Ataques web (XSS, clickjacking)** | Robo de la sesión | Cabeceras CSP, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`; React escapa el contenido; consultas SQL parametrizadas |
 | **Falla del equipo** | Pérdida de vigilancia | Reconexión automática de la cámara; reinicio automático del servicio (systemd `Restart=always`); monitoreo de temperatura; los errores de procesamiento no detienen el hilo |
@@ -36,7 +37,11 @@ Un respaldo contiene toda la biometría cifrada. Por defecto no incluye la clave
 - **Borrado en tarjeta SD:** por el nivelado de desgaste de la memoria flash, la sobrescritura no garantiza el borrado físico. Por eso los archivos ya están cifrados.
 - **La clave de cifrado está en el mismo dispositivo.** Protege contra la copia de archivos sueltos, pero no contra alguien que se lleve la tarjeta SD completa. Mejora posible: cifrado de disco completo (LUKS) o un elemento seguro (por ejemplo, ATECC608).
 
-## Aspectos legales (Bolivia)
+## Aspectos legales
+
+Vea la [guía legal por jurisdicción](legal.md) para el uso público del software.
+
+### Bolivia (contexto del proyecto académico)
 
 > Esto no es asesoría legal; el condominio debe consultarlo con un abogado.
 

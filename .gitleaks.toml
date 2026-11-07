@@ -1,0 +1,7 @@
+# Configuración de Gitleaks: reglas por defecto + contraseñas ficticias de las pruebas.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Contraseñas de prueba ficticias (no son credenciales reales)"
+paths = ['''backend/tests/.*\.py''']

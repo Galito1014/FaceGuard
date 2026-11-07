@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceGuard AI — Descargas</title>
+  <meta name="description" content="FaceGuard AI: alertas por reconocimiento facial con procesamiento 100 % local. Descargas para Windows, Linux y Raspberry Pi.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <style>
+    :root {
+      --bg: #05070a; --bg2: #0b0f15; --panel: #0f141b; --line: #222d3a; --line2: #2e3b4b;
+      --ink: #d6dde6; --ink2: #a9b5c4; --ink3: #7b8a9e; --white: #fff;
+      --volt: #1f8bff; --volt2: #45a6ff; --volt3: #7cc4ff; --warn: #fbbf24; --ok: #4ade80;
+      --radius: 14px;
+      --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font); }
+    a { color: var(--volt3); }
+    img { max-width: 100%; display: block; }
+    .wrap { width: min(1120px, 100% - 32px); margin-inline: auto; }
+    header.top { position: sticky; top: 0; z-index: 10; background: rgba(5,7,10,.85); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+    header.top .wrap { display: flex; align-items: center; gap: 16px; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--white); font-weight: 700; text-decoration: none; }
+    .brand img { width: 28px; height: 28px; }
+    .brand b { color: var(--volt2); font-weight: 700; }
+    nav { margin-left: auto; display: flex; gap: 18px; font-size: 14px; }
+    nav a { color: var(--ink2); text-decoration: none; }
+    nav a:hover { color: var(--white); }
+    @media (max-width: 760px) { nav a:not(.cta) { display: none; } }
+    .hero { padding: 72px 0 40px; background:
+      linear-gradient(rgba(31,139,255,.05) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, rgba(31,139,255,.05) 1px, transparent 1px) 0 0/40px 40px; }
+    .hero h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.1; color: var(--white); margin: 0 0 16px; letter-spacing: -.02em; }
+    .hero h1 span { color: var(--volt2); }
+    .hero p.lead { font-size: 19px; color: var(--ink2); max-width: 680px; margin: 0 0 28px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 12px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; text-decoration: none; border: 1px solid var(--line2); color: var(--white); background: #131a23; }
+    .btn.primary { background: var(--volt); border-color: var(--volt); box-shadow: 0 0 26px -8px rgba(31,139,255,.9); }
+    .btn:hover { filter: brightness(1.12); }
+    .btn small { font-weight: 400; color: rgba(255,255,255,.75); }
+    .shot img { max-height: 760px; width: 100%; object-fit: cover; object-position: top; }
+    .shot { margin-top: 44px; border: 1px solid var(--line2); border-radius: var(--radius); overflow: hidden; box-shadow: 0 30px 80px -30px rgba(31,139,255,.35); }
+    section { padding: 64px 0; border-top: 1px solid var(--line); }
+    h2 { color: var(--white); font-size: 28px; margin: 0 0 8px; letter-spacing: -.01em; }
+    h3 { color: var(--white); font-size: 18px; margin: 0 0 6px; }
+    .sub { color: var(--ink3); margin: 0 0 32px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+    .card p { margin: 0; color: var(--ink2); font-size: 15px; }
+    .card .ico { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: rgba(31,139,255,.12); color: var(--volt3); margin-bottom: 12px; font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { color: var(--ink3); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+    td:first-child { color: var(--ink2); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+    .dl { display: flex; flex-direction: column; gap: 14px; }
+    .dl .card h3 { display: flex; align-items: center; gap: 10px; }
+    .dl .meta { color: var(--ink3); font-size: 13px; margin: 4px 0 14px; }
+    .dl .btns { gap: 8px; }
+    .tag { font: 600 11px var(--mono); color: var(--volt3); background: rgba(31,139,255,.12); border: 1px solid rgba(31,139,255,.3); padding: 2px 7px; border-radius: 6px; }
+    pre, code { font-family: var(--mono); }
+    pre { background: #000; border: 1px solid var(--line); border-radius: 10px; padding: 14px; overflow-x: auto; font-size: 13px; color: var(--ink); margin: 10px 0 0; }
+    code { font-size: .9em; }
+    .note { border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.07); border-radius: var(--radius); padding: 16px 18px; color: var(--ink); }
+    .note b { color: var(--warn); }
+    .gallery { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+    figure { margin: 0; }
+    figure img { border: 1px solid var(--line2); border-radius: 10px; }
+    figcaption { color: var(--ink3); font-size: 13px; margin-top: 8px; }
+    details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin-bottom: 10px; }
+    details summary { cursor: pointer; color: var(--white); font-weight: 600; }
+    details p, details li { color: var(--ink2); }
+    ol.steps { padding-left: 20px; } ol.steps li { margin-bottom: 6px; }
+    .releases li { margin-bottom: 10px; }
+    .muted { color: var(--ink3); }
+    footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--ink3); font-size: 14px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+    .tabs button { font: 600 14px var(--font); color: var(--ink2); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+    .tabs button[aria-selected="true"] { color: var(--white); border-color: var(--volt); background: rgba(31,139,255,.14); }
+    .tabpanel[hidden] { display: none; }
+    :focus-visible { outline: 2px solid var(--volt2); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><img src="favicon.svg" alt=""> FaceGuard <b>AI</b></a>
+    <nav aria-label="Secciones">
+      <a href="#caracteristicas">Características</a>
+      <a href="#modalidades">Desktop o Raspberry Pi</a>
+      <a href="#instalacion">Instalación</a>
+      <a href="#privacidad">Privacidad</a>
+      <a href="#preguntas">Preguntas</a>
+      <a class="cta" href="#descargas">Descargar</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <h1>Alertas por reconocimiento facial,<br><span>sin enviar nada a la nube</span>.</h1>
+      <p class="lead">FaceGuard AI vigila una entrada con una cámara, compara los rostros con una lista de alerta y avisa a una persona para que revise. Todo se procesa en su equipo: Windows, Linux o una Raspberry Pi.</p>
+      <div class="btns">
+        <a class="btn primary" href="#descargas">Descargar gratis</a>
+        <a class="btn" href="https://github.com/Galito1014/FaceGuard">Código fuente</a>
+      </div>
+      <figure class="shot"><img src="img/02-dashboard.png" alt="Panel principal de FaceGuard AI con alertas pendientes, estado de la cámara y estadísticas" width="1440" height="1608" loading="eager"></figure>
+    </div>
+  </div>
+
+  <section id="caracteristicas">
+    <div class="wrap">
+      <h2>Características</h2>
+      <p class="sub">Un mismo núcleo para las dos modalidades.</p>
+      <div class="grid">
+        <div class="card"><div class="ico">◎</div><h3>Detección en tiempo real</h3><p>YuNet detecta rostros y SFace los compara con su galería. Funciona con webcams USB, cámaras integradas y cámaras CSI de Raspberry Pi.</p></div>
+        <div class="card"><div class="ico">⚑</div><h3>Lista de alerta</h3><p>Registre personas con una restricción documentada. Cada posible coincidencia genera una alerta con nivel de similitud.</p></div>
+        <div class="card"><div class="ico">✓</div><h3>Revisión humana</h3><p>Ninguna coincidencia es una identificación. Una persona confirma o descarta cada alerta y queda registrado.</p></div>
+        <div class="card"><div class="ico">⌂</div><h3>100 % local</h3><p>Base de datos SQLite en su equipo, plantillas biométricas cifradas y funcionamiento sin Internet.</p></div>
+        <div class="card"><div class="ico">☰</div><h3>Historial y auditoría</h3><p>Eventos, alertas y acciones administrativas con fecha y hora. Exportación a CSV y PDF.</p></div>
+        <div class="card"><div class="ico">⚙</div><h3>Usuarios y roles</h3><p>Superadministrador, administrador, operador y auditor, cada uno con sus permisos.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="modalidades">
+    <div class="wrap">
+      <h2>Desktop o Raspberry Pi</h2>
+      <p class="sub">Elija según dónde quiera instalarlo. Puede empezar en su computadora y pasar luego a una Raspberry Pi.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col"></th><th scope="col">FaceGuard AI Desktop</th><th scope="col">FaceGuard AI Raspberry Pi</th></tr></thead>
+          <tbody>
+            <tr><td>Para quién</td><td>Quien quiere usarlo en su propia computadora</td><td>Un sistema fijo y autónomo en una entrada</td></tr>
+            <tr><td>Sistemas</td><td>Windows 10/11 (64 bits) · Linux x86_64</td><td>Raspberry Pi OS 64 bits (Raspberry Pi 4 o 5)</td></tr>
+            <tr><td>Interfaz</td><td>Ventana de escritorio</td><td>Panel web desde el navegador de su PC o teléfono, en la red local</td></tr>
+            <tr><td>Cámara</td><td>Webcam integrada o USB</td><td>USB o módulo de cámara CSI</td></tr>
+            <tr><td>Arranque</td><td>Cuando abre el programa</td><td>Automático al encender, con reinicio ante fallos</td></tr>
+            <tr><td>Avisos físicos</td><td>Sonido en la ventana</td><td>Sonido en el panel + LED y buzzer opcionales (GPIO)</td></tr>
+            <tr><td>Acceso</td><td>Solo desde el propio equipo</td><td>Solo desde la red local (nunca desde Internet, por defecto)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="descargas">
+    <div class="wrap">
+      <h2>Descargas</h2>
+      <p class="sub" id="release-info">Última versión: consultando GitHub…</p>
+      <div class="dl">
+        <div class="card">
+          <h3>Windows 10 / 11 <span class="tag">x64</span></h3>
+          <p class="meta">Instalador. No requiere permisos de administrador.</p>
+          <div class="btns"><a class="btn primary" data-asset="windows-x64-setup.exe" href="https://github.com/Galito1014/FaceGuard/releases/latest">Descargar para Windows</a></div>
+        </div>
+        <div class="card">
+          <h3>Linux <span class="tag">x86_64</span></h3>
+          <p class="meta">.deb para Ubuntu, Debian, Linux Mint y derivados · AppImage para cualquier distribución.</p>
+          <div class="btns">
+            <a class="btn primary" data-asset="linux-amd64.deb" href="https://github.com/Galito1014/FaceGuard/releases/latest">Descargar .deb</a>
+            <a class="btn" data-asset="linux-x86_64.AppImage" href="https://github.com/Galito1014/FaceGuard/releases/latest">Descargar AppImage</a>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Raspberry Pi <span class="tag">arm64</span></h3>
+          <p class="meta">Abra una terminal en la Raspberry Pi y pegue este comando. Descarga la última versión, verifica su integridad e instala el servicio.</p>
+          <pre><code>curl -fsSL https://raw.githubusercontent.com/Galito1014/FaceGuard/main/installers/raspberry-pi/install.sh | sudo bash</code></pre>
+          <p class="meta" style="margin-top:10px">¿Sin Internet en la Pi? <a data-asset="arm64.tar.gz" href="https://github.com/Galito1014/FaceGuard/releases/latest">Descargue el paquete</a> y <a data-asset="SHA256SUMS.txt" href="https://github.com/Galito1014/FaceGuard/releases/latest">SHA256SUMS.txt</a> e instale con <code>sudo bash install.sh --file paquete.tar.gz</code>.</p>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:16px;font-size:14px">Verifique cualquier descarga con el archivo <code>SHA256SUMS.txt</code> de la misma versión. En Windows: <code>Get-FileHash archivo.exe</code>. En Linux: <code>sha256sum -c SHA256SUMS.txt --ignore-missing</code>.</p>
+
+      <h3 style="margin-top:36px">Requisitos mínimos</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col"></th><th scope="col">Desktop</th><th scope="col">Raspberry Pi</th></tr></thead>
+          <tbody>
+            <tr><td>Sistema</td><td>Windows 10 (1809+) o 11, 64 bits · Linux x86_64 con glibc 2.35+ (Ubuntu 22.04, Debian 12 o posteriores)</td><td>Raspberry Pi OS 64 bits (Bookworm o posterior)</td></tr>
+            <tr><td>Procesador</td><td>CPU x64 de 4 núcleos</td><td>Raspberry Pi 4 (recomendado: 4 u 8 GB) o Raspberry Pi 5</td></tr>
+            <tr><td>Memoria</td><td>4 GB de RAM</td><td>2 GB (mínimo) · 4–8 GB recomendado</td></tr>
+            <tr><td>Disco</td><td>1 GB libre</td><td>microSD de 32 GB A1/A2</td></tr>
+            <tr><td>Cámara</td><td>Webcam integrada o USB (UVC)</td><td>Webcam USB (UVC) o módulo de cámara CSI</td></tr>
+            <tr><td>Linux Desktop</td><td>Recomendado: Chromium, Chrome, Edge o Brave para abrir la ventana de la aplicación</td><td>—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="capturas">
+    <div class="wrap">
+      <h2>Capturas</h2>
+      <p class="sub">Capturas reales de FaceGuard AI. Las personas que aparecen son ficticias o de dominio público (imagen <em>Astronaut</em> de la NASA).</p>
+      <div class="gallery">
+        <figure><img src="img/14-asistente-inicial.png" alt="Asistente de configuración inicial, paso de cuenta administradora" loading="lazy" width="1280" height="860"><figcaption>Asistente de primer uso</figcaption></figure>
+        <figure><img src="img/03-monitoreo.png" alt="Monitoreo en vivo con la imagen de la cámara" loading="lazy" width="1440" height="900"><figcaption>Monitoreo en vivo</figcaption></figure>
+        <figure><img src="img/06-alertas.png" alt="Lista de alertas pendientes con nivel y similitud" loading="lazy" width="1440" height="900"><figcaption>Alertas pendientes de revisión</figcaption></figure>
+        <figure><img src="img/07-revision-alerta.png" alt="Revisión de una alerta: comparación de la captura con la foto registrada" loading="lazy" width="1440" height="900"><figcaption>Revisión humana de una alerta</figcaption></figure>
+        <figure><img src="img/04-registro-calidad.png" alt="Registro de una persona con control de calidad de la foto" loading="lazy" width="1440" height="900"><figcaption>Registro con control de calidad de la foto</figcaption></figure>
+        <figure><img src="img/09-configuracion.png" alt="Pantalla de configuración del reconocimiento" loading="lazy" width="1440" height="900"><figcaption>Configuración</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <section id="instalacion">
+    <div class="wrap">
+      <h2>Guías de instalación</h2>
+      <p class="sub">En los tres casos, al abrir FaceGuard AI por primera vez aparece un asistente que le guía para crear la cuenta, elegir la cámara y configurar alertas y privacidad.</p>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" aria-controls="g-win" id="t-win">Windows</button>
+        <button role="tab" aria-selected="false" aria-controls="g-lin" id="t-lin" tabindex="-1">Linux</button>
+        <button role="tab" aria-selected="false" aria-controls="g-pi" id="t-pi" tabindex="-1">Raspberry Pi</button>
+      </div>
+      <div class="card tabpanel" role="tabpanel" id="g-win" aria-labelledby="t-win">
+        <ol class="steps">
+          <li>Descargue <code>FaceGuardAI-Desktop-…-windows-x64-setup.exe</code>.</li>
+          <li>Ábralo. Si Windows muestra “Windows protegió su PC” (SmartScreen), pulse <b>Más información → Ejecutar de todas formas</b>. Aparece porque el instalador todavía no tiene firma de código; puede comprobar el archivo con <code>SHA256SUMS.txt</code>.</li>
+          <li>Siga el instalador y abra <b>FaceGuard AI</b> desde el menú Inicio.</li>
+          <li>Permita el acceso a la cámara si Windows lo pide: <b>Configuración → Privacidad y seguridad → Cámara → Permitir que las aplicaciones de escritorio accedan a la cámara</b>.</li>
+          <li>Para actualizar, instale la versión nueva encima: sus datos se conservan en <code>%LOCALAPPDATA%\FaceGuard AI</code>.</li>
+        </ol>
+      </div>
+      <div class="card tabpanel" role="tabpanel" id="g-lin" aria-labelledby="t-lin" hidden>
+        <ol class="steps">
+          <li><b>.deb</b> (Ubuntu, Debian, Mint): <code>sudo apt install ./FaceGuardAI-Desktop-…-linux-amd64.deb</code> y abra FaceGuard AI desde el menú de aplicaciones.</li>
+          <li><b>AppImage</b>: márquelo como ejecutable (<code>chmod +x FaceGuardAI-*.AppImage</code>) y ábralo con doble clic.</li>
+          <li>Si la cámara no aparece, añada su usuario al grupo <code>video</code>: <code>sudo usermod -aG video $USER</code> y vuelva a iniciar sesión.</li>
+          <li>Sus datos se guardan en <code>~/.local/share/faceguard-ai</code> y no se borran al actualizar o desinstalar.</li>
+        </ol>
+      </div>
+      <div class="card tabpanel" role="tabpanel" id="g-pi" aria-labelledby="t-pi" hidden>
+        <ol class="steps">
+          <li>Instale <b>Raspberry Pi OS (64-bit)</b> con Raspberry Pi Imager y conecte la Pi a su red.</li>
+          <li>Conecte la cámara USB (o el módulo CSI) y, en la Pi, ejecute el comando de la sección Descargas. Con cámara CSI añada <code>--csi</code>: <code>… | sudo bash -s -- --csi</code></li>
+          <li>Al terminar, el instalador muestra la dirección del panel (<code>http://IP-de-la-Pi:8000</code>) y un <b>código de configuración</b>.</li>
+          <li>Desde un navegador de la misma red, abra esa dirección y escriba el código para empezar el asistente.</li>
+          <li>FaceGuard AI arranca solo al encender la Pi. Para actualizar, repita el mismo comando: guarda una copia de la base de datos y conserva todo.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacidad">
+    <div class="wrap">
+      <h2>Privacidad y uso responsable</h2>
+      <div class="note">
+        <p style="margin-top:0"><b>Los rostros son datos biométricos.</b> En muchos lugares su uso está regulado (por ejemplo, el RGPD en la Unión Europea, la BIPA en Illinois o leyes de protección de datos de América Latina). Quien instala FaceGuard AI es responsable de usarlo legalmente: tener una base legal y, cuando se exija, el consentimiento de las personas; colocar avisos de videovigilancia; y registrar en la lista de alerta solo a personas con un motivo documentado.</p>
+        <p style="margin-bottom:0">Una alerta es una <b>posible coincidencia</b>, no una identificación. No la use como única base para impedir el acceso a nadie. Lea la <a href="https://github.com/Galito1014/FaceGuard/blob/main/PRIVACY.md">política de privacidad</a> y la <a href="https://github.com/Galito1014/FaceGuard/blob/main/docs/legal.md">guía legal</a>.</p>
+      </div>
+      <div class="grid" style="margin-top:16px">
+        <div class="card"><h3>Nada sale de su equipo</h3><p>FaceGuard AI no envía imágenes ni datos biométricos a ningún servicio. Esta página tampoco usa cookies ni rastreadores.</p></div>
+        <div class="card"><h3>Actualizaciones opcionales</h3><p>La búsqueda de versiones nuevas viene desactivada. Si la activa, solo consulta el número de versión en GitHub.</p></div>
+        <div class="card"><h3>Usted controla los datos</h3><p>Conservación configurable, borrado automático y eliminación permanente de registros y fotos.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="preguntas">
+    <div class="wrap">
+      <h2>Preguntas frecuentes</h2>
+      <details><summary>¿Es gratis?</summary><p>Sí. FaceGuard AI es software libre bajo la licencia Apache 2.0. Puede usarlo, estudiarlo y modificarlo.</p></details>
+      <details><summary>¿Necesita Internet?</summary><p>No. Funciona sin conexión. Internet solo hace falta para descargar el instalador y, si lo activa, para buscar actualizaciones.</p></details>
+      <details><summary>¿Qué tan preciso es?</summary><p>Usa modelos públicos de OpenCV (YuNet y SFace) con un umbral calibrado. Ningún sistema es perfecto: la iluminación, el ángulo y la calidad de las fotos influyen, y puede haber falsas coincidencias. Por eso cada alerta requiere revisión humana.</p></details>
+      <details><summary>¿Puedo ver el panel de la Raspberry Pi desde fuera de casa?</summary><p>No por defecto: el panel solo acepta conexiones de la red local. Para acceso remoto use una VPN (por ejemplo WireGuard o Tailscale). No abra el puerto en su router.</p></details>
+      <details><summary>¿Se pierden mis datos al actualizar?</summary><p>No. Los datos viven fuera de la carpeta del programa y el instalador de la Raspberry Pi guarda además una copia de la base de datos antes de actualizar.</p></details>
+      <details><summary>¿Por qué Windows dice que el instalador no es reconocido?</summary><p>El instalador todavía no tiene un certificado de firma de código. Compruebe que la suma SHA-256 coincide con <code>SHA256SUMS.txt</code> de la versión publicada en GitHub.</p></details>
+      <details><summary>¿Funciona en macOS?</summary><p>No hay instalador para macOS por ahora. Se puede ejecutar desde el código fuente (ver el README).</p></details>
+      <details><summary>¿Cómo informo de un problema de seguridad?</summary><p>Siga la <a href="https://github.com/Galito1014/FaceGuard/blob/main/SECURITY.md">política de seguridad</a>. No publique vulnerabilidades en un issue abierto.</p></details>
+    </div>
+  </section>
+
+  <section id="versiones">
+    <div class="wrap">
+      <h2>Historial de versiones</h2>
+      <ul class="releases" id="releases"><li class="muted">Consultando GitHub…</li></ul>
+      <p><a href="https://github.com/Galito1014/FaceGuard/releases">Todas las versiones en GitHub</a> · <a href="https://github.com/Galito1014/FaceGuard/blob/main/CHANGELOG.md">CHANGELOG</a></p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    FaceGuard AI · Licencia Apache 2.0 · <a href="https://github.com/Galito1014/FaceGuard">Código fuente en GitHub</a><br>
+    Software de apoyo a la seguridad. Toda coincidencia es preliminar y requiere revisión humana.
+  </div>
+</footer>
+
+<script>
+(function () {
+  var REPO = "Galito1014/FaceGuard";
+  // Pestañas de las guías de instalación
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !on;
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { select(t); });
+    t.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        var n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+        select(n); n.focus();
+      }
+    });
+  });
+  if (/linux/i.test(navigator.userAgent) && !/android/i.test(navigator.userAgent)) select(document.getElementById("t-lin"));
+
+  function esc(s) { var d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+  function fmtDate(s) { try { return new Date(s).toLocaleDateString("es", { year: "numeric", month: "long", day: "numeric" }); } catch (e) { return s; } }
+  function fmtSize(b) { return b > 1048576 ? (b / 1048576).toFixed(0) + " MB" : (b / 1024).toFixed(0) + " KB"; }
+
+  // Enlaza los botones a los archivos reales de la última versión publicada.
+  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=10", { headers: { Accept: "application/vnd.github+json" } })
+    .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function (list) {
+      var published = list.filter(function (r) { return !r.draft; });
+      var stable = published.filter(function (r) { return !r.prerelease; });
+      var latest = stable[0] || published[0];
+      var info = document.getElementById("release-info");
+      if (!latest) { info.textContent = "Todavía no hay versiones publicadas."; }
+      else {
+        info.innerHTML = "Última versión: <b>" + esc(latest.tag_name) + "</b> · " + esc(fmtDate(latest.published_at));
+        document.querySelectorAll("[data-asset]").forEach(function (a) {
+          var suffix = a.getAttribute("data-asset");
+          var asset = latest.assets.find(function (x) { return x.name.slice(-suffix.length) === suffix; });
+          if (asset) {
+            a.href = asset.browser_download_url;
+            if (a.classList.contains("btn")) a.insertAdjacentHTML("beforeend", " <small>" + fmtSize(asset.size) + "</small>");
+          }
+        });
+      }
+      var ul = document.getElementById("releases");
+      ul.innerHTML = published.length ? published.map(function (r) {
+        return '<li><a href="' + esc(r.html_url) + '"><b>' + esc(r.name || r.tag_name) + "</b></a> · " + esc(fmtDate(r.published_at)) +
+          (r.prerelease ? ' <span class="tag">preliminar</span>' : "") + "</li>";
+      }).join("") : '<li class="muted">Todavía no hay versiones publicadas.</li>';
+    })
+    .catch(function () {
+      document.getElementById("release-info").innerHTML = 'No se pudo consultar GitHub. Vea las descargas en <a href="https://github.com/' + REPO + '/releases/latest">GitHub Releases</a>.';
+      document.getElementById("releases").innerHTML = '<li><a href="https://github.com/' + REPO + '/releases">Ver versiones en GitHub</a></li>';
+    });
+})();
+</script>
+</body>
+</html>

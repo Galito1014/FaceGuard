@@ -50,9 +50,9 @@ def validate_password_strength(password: str) -> str | None:
 class LoginThrottle:
     """Límite opcional de intentos fallidos por usuario+IP.
 
-    Por defecto los intentos son ilimitados y no hay espera
-    (FACEGUARD_LOGIN_MAX_ATTEMPTS=0). Con un valor N > 0 se bloquea durante
-    FACEGUARD_LOGIN_LOCK_SECONDS (300 s) tras N intentos fallidos.
+    Por defecto se bloquea durante FACEGUARD_LOGIN_LOCK_SECONDS (300 s) tras
+    5 intentos fallidos (FACEGUARD_LOGIN_MAX_ATTEMPTS). Con 0 los intentos son
+    ilimitados y no hay espera.
     """
 
     MAX_ATTEMPTS = config.login_max_attempts

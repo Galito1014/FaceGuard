@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FaceGuard AI
+GenericName=Reconocimiento facial y alertas
+Comment=Alertas por reconocimiento facial con procesamiento local
+Exec=faceguard-ai
+Icon=faceguard-ai
+Terminal=false
+Categories=Security;Video;
+Keywords=reconocimiento;facial;camara;seguridad;alerta;
+StartupWMClass=FaceGuardAI

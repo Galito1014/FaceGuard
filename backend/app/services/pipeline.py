@@ -45,6 +45,22 @@ RED = (40, 40, 235)
 AMBER = (0, 170, 255)
 
 
+
+def thermal_factor(temp_c: float | None) -> float:
+    """Multiplicador del intervalo de análisis según la temperatura (°C).
+
+    La Raspberry Pi 4 reduce su propia frecuencia a partir de ~80 °C. Antes de
+    llegar ahí, FaceGuard AI analiza menos fotogramas por segundo para bajar la
+    carga: ×1,5 desde 75 °C y ×2 desde 80 °C. Sin sensor (PC), no cambia nada.
+    """
+    if temp_c is None:
+        return 1.0
+    if temp_c >= 80:
+        return 2.0
+    if temp_c >= 75:
+        return 1.5
+    return 1.0
+
 class Pipeline:
     def __init__(self) -> None:
         self._thread: threading.Thread | None = None
@@ -118,12 +134,24 @@ class Pipeline:
         return out
 
     # ------------------------------------------------------------------ hilo
+    def _update_thermal(self) -> float:
+        """Reduce la frecuencia de análisis si el procesador se calienta (Raspberry Pi)."""
+        now = time.time()
+        if now - getattr(self, "_thermal_checked", 0.0) >= 10:
+            self._thermal_checked = now
+            from app.services.system_monitor import read_temperature
+            factor = thermal_factor(read_temperature())
+            if factor != getattr(self, "thermal_factor", 1.0):
+                log.warning("Temperatura del procesador: intervalo de análisis ×%s", factor)
+            self.thermal_factor = factor
+        return getattr(self, "thermal_factor", 1.0)
+
     def _loop(self) -> None:
         last_id = -1
         count, t_last = 0, time.time()
         while not self._stop.is_set():
             cfg = settings.all()
-            interval = cfg["process_interval_ms"] / 1000
+            interval = cfg["process_interval_ms"] / 1000 * self._update_thermal()
             t0 = time.time()
             frame, fid, _ = camera.latest()
             if frame is None or fid == last_id:
@@ -317,6 +345,7 @@ class Pipeline:
             "latency_ms": self.latency_ms,
             "faces_now": self.faces_now,
             "frames_processed": self.frames_processed,
+            "thermal_throttle": getattr(self, "thermal_factor", 1.0) > 1.0,
             "alerts_generated": self.alerts_generated,
             "embeds_computed": self.embeds_computed,
             "embeds_skipped": self.embeds_skipped,
