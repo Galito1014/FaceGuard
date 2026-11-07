@@ -4,7 +4,7 @@ import cv2
 from app.core import compat
 from app.services import camera as camera_mod
 from app.services import system_monitor
-from app.services.gpio import GPIOService
+from app.services.alarm_controller import AlarmController
 
 
 def test_backends_linux_igual_que_antes(monkeypatch):
@@ -27,12 +27,14 @@ def test_backend_forzado(monkeypatch):
 
 def test_gpio_simulado_fuera_de_linux(monkeypatch):
     monkeypatch.setattr(compat, "gpio_supported", lambda: False)
-    g = GPIOService()
+    g = AlarmController()
     g.setup(17, 27)
     st = g.status()
-    assert st["simulated"] and "simulado" in st["error"]
-    assert g.alarm("alto", {"gpio_enabled": True, "led_enabled": True, "buzzer_enabled": True,
-                            "buzzer_min_level": "medio", "gpio_alarm_seconds": 1}) == {"led": True, "buzzer": True}
+    assert st["simulated"] and st["mode"] == "simulado" and "simulado" in st["error"]
+    r = g.trigger("alto", {"gpio_enabled": True, "led_enabled": True, "buzzer_enabled": True, "buzzer_min_level": "medio",
+                           "led_seconds": 1, "buzzer_seconds": 1, "buzzer_pattern": "continuo"}, source="prueba")
+    assert (r["led"], r["buzzer"], r["state"]) == (True, True, "simulada")
+    g.close()
 
 
 def test_listado_por_sondeo_sin_camaras(monkeypatch):

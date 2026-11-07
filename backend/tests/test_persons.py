@@ -109,7 +109,7 @@ def test_migracion_y_su_registro_son_atomicos(tmp_path, monkeypatch):
     with pytest.raises(sqlite3.OperationalError):
         database.run_migrations(path)
     monkeypatch.undo()
-    assert database.run_migrations(path) == ["002_persons"]
+    assert database.run_migrations(path) == ["002_persons", "003_alarma_fisica"]
     db = sqlite3.connect(path)
     assert db.execute("SELECT full_name FROM persons").fetchone() == ("Ana",)
     db.close()

@@ -106,6 +106,8 @@ def run_retention() -> dict[str, Any]:
                        (e["id"], "sistema", "vencido automáticamente", '{"status": ["activo", "vencido"]}', now))
         sessions = db.execute("DELETE FROM sessions WHERE expires_at < ?", (now,)).rowcount
         audit_deleted = db.execute("DELETE FROM audit_log WHERE at < ?", (_cutoff(cfg["retention_days_audit"]),)).rowcount
+        # El historial de la alarma física sigue el mismo plazo que los eventos.
+        alarm_deleted = db.execute("DELETE FROM alarm_activations WHERE at < ? AND state != 'activa'", (ev_cut,)).rowcount
     purged = _purge_expired_authorized(cfg["retention_days_expired_authorized"])
     if expired or purged:
         from app.services.face_engine import gallery
@@ -117,7 +119,7 @@ def run_retention() -> dict[str, Any]:
         orphans = 0
     result = {"events_deleted": events_deleted, "snapshots_deleted": len(old_snaps) + len(old_events_files),
               "entries_expired": len(expired), "sessions_deleted": sessions, "audit_deleted": audit_deleted,
-              "authorized_purged": purged, "orphans_deleted": orphans}
+              "authorized_purged": purged, "orphans_deleted": orphans, "alarm_activations_deleted": alarm_deleted}
     if any(result.values()):
         log.info("Retención aplicada: %s", result)
         audit(None, "retención automática", details=result)

@@ -10,7 +10,7 @@ from app.core import compat
 from app.services.camera import camera
 from app.services.events import create_event
 from app.services.face_engine import engine, gallery
-from app.services.gpio import gpio
+from app.services.alarm_controller import alarm
 from app.services.pipeline import pipeline
 from app.services.realtime import hub
 from app.services.settings_store import settings
@@ -18,7 +18,7 @@ from app.services.settings_store import settings
 log = logging.getLogger("faceguard.runtime")
 
 CAMERA_KEYS = {"camera_index", "camera_width", "camera_height", "demo_mode"}
-GPIO_KEYS = {"led_pin", "buzzer_pin"}
+GPIO_KEYS = {"led_pin", "buzzer_pin", "buzzer_type", "buzzer_frequency"}
 _last_camera_event = 0.0
 
 
@@ -59,7 +59,7 @@ def restart_engine() -> dict[str, Any]:
 def on_settings_changed(changed: dict[str, Any]) -> None:
     keys = set(changed)
     if keys & GPIO_KEYS:
-        gpio.setup(settings.get("led_pin"), settings.get("buzzer_pin"))
+        setup_alarm()
     if "monitoring_enabled" in keys:
         (start_monitoring if changed["monitoring_enabled"] else stop_monitoring)()
     elif keys & CAMERA_KEYS and settings.get("monitoring_enabled"):
@@ -69,16 +69,25 @@ def on_settings_changed(changed: dict[str, Any]) -> None:
     hub.publish("settings", settings.all(), perm="settings.view")
 
 
+def setup_alarm() -> None:
+    """Abre los pines del LED y el buzzer con la configuración guardada (salidas apagadas)."""
+    cfg = settings.all()
+    alarm.setup(cfg["led_pin"], cfg["buzzer_pin"], cfg["buzzer_type"], cfg["buzzer_frequency"])
+
+
 def startup() -> None:
     camera.on_status_change = _on_camera_status
     settings.on_change(on_settings_changed)
     engine.load()
     gallery.load()
-    gpio.setup(settings.get("led_pin"), settings.get("buzzer_pin"))
+    # La alarma se inicializa con el servicio principal: no hace falta ningún script aparte.
+    alarm.on_change = lambda st: hub.publish("alarm", st, perm="dashboard.view")
+    alarm.recover_interrupted()
+    setup_alarm()
     if not config.disable_workers and settings.get("monitoring_enabled"):
         start_monitoring()
 
 
 def shutdown() -> None:
     stop_monitoring()
-    gpio.close()
+    alarm.close()  # apaga el LED y el buzzer y libera los pines

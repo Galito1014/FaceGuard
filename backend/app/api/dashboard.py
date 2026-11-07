@@ -11,7 +11,7 @@ from app.core.security import require
 from app.services import system_monitor
 from app.services.camera import camera
 from app.services.events import serialize_event
-from app.services.gpio import gpio
+from app.services.alarm_controller import alarm
 from app.services.pipeline import pipeline
 from app.services.settings_store import settings
 
@@ -31,7 +31,7 @@ def live_status() -> dict:
         "system": system_monitor.snapshot(),
         "camera": camera.status(),
         "engine": pipeline.status(),
-        "gpio": gpio.status(),
+        "gpio": alarm.status(),
         "pending_alerts": pending,
         "demo_mode": settings.get("demo_mode"),
         "alert_sound": settings.get("alert_sound"),
