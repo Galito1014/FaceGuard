@@ -1,13 +1,20 @@
 # Presentación
 
-Coloque aquí el archivo de la presentación (PowerPoint/PDF) o del póster usado en la exposición de 10–12 minutos.
+Presentación de FaceGuard AI para la exposición de 10–12 minutos del curso de Internet de las Cosas (Universidad Interamericana de Puerto Rico, Recinto de Bayamón).
 
-Guion sugerido:
-1. Problema (1 min) — quién se ve afectado y por qué importa.
-2. Solución y arquitectura (2 min) — diagrama `../img/arquitectura.png`.
-3. Aporte creativo (1,5 min).
-4. Demostración en vivo (3 min) — persona no registrada → sin alerta; persona registrada → LED, buzzer y notificación; revisión de la alerta.
-5. Pruebas y ajustes (1,5 min).
-6. Costo y viabilidad (1 min).
-7. Seguridad y privacidad (1 min).
-8. Preguntas.
+- [`FaceGuard_AI_Presentacion.pptx`](FaceGuard_AI_Presentacion.pptx) — PowerPoint editable (13 diapositivas).
+- [`FaceGuard_AI_Presentacion.pdf`](FaceGuard_AI_Presentacion.pdf) — versión PDF para verla directamente en GitHub.
+
+**Integrantes:** Andrés Gutiérrez, Keneth Negrón Torres y Christian Vidal Vargas.
+
+## Orden de la exposición
+
+| # | Parte | Tiempo | Ponente |
+|---|---|---|---|
+| 1 | El problema: a quién afecta y por qué la lista en papel falla | 1 min | Christian Vidal Vargas |
+| 2 | Solución y arquitectura: el sistema y el flujo de datos (`../img/arquitectura.png`) | 2 min | Andrés Gutiérrez |
+| 3 | Aporte creativo: diferencias frente a otros proyectos y privacidad por diseño | 1,5 min | Andrés Gutiérrez |
+| 4 | Demostración en vivo: persona no registrada → sin alerta; persona registrada → LED, buzzer y notificación; revisión del guardia | 3 min | Keneth Negrón Torres y Christian Vidal Vargas |
+| 5 | Pruebas y ajustes: resultados del prototipo y calibración del umbral | 1,5 min | Keneth Negrón Torres |
+| 6 | Costo, viabilidad, seguridad y privacidad | 2 min | Christian Vidal Vargas |
+| 7 | Preguntas | — | Todo el grupo |

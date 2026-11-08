@@ -746,18 +746,17 @@ faceguard-ai/
 | Fuentes Inter y JetBrains Mono ([Fontsource](https://fontsource.org/), licencia OFL) | Tipografía incluida localmente (funciona sin Internet) | — |
 | Imagen *Astronaut* (NASA, dominio público, vía `scikit-image`) | Persona de prueba en pruebas automáticas y capturas | No se usaron fotos de personas sin su consentimiento |
 | [Raspberry Pi — aumento de precios, abril de 2026](https://www.raspberrypi.com/news/a-new-3gb-raspberry-pi-4-for-83-75-and-more-memory-driven-price-increases/) y [Liliputing](https://liliputing.com/?p=198888) | Precios para el análisis de costos | — |
-| **Claude (Anthropic), asistente de IA** | Ayudó a generar código, documentación y pruebas a partir de la especificación escrita por el grupo | **El grupo debe describir aquí qué revisó, probó, modificó y decidió por su cuenta** (ver la sección 13) |
+| **Claude (Anthropic), asistente de IA** | Ayudó a generar código, documentación y pruebas a partir de la especificación escrita por el grupo | El grupo definió los requisitos y la arquitectura, validó y probó el sistema, hizo los ajustes y montó el hardware (ver la sección 13) |
 
 ## 13. Presentación y equipo
 
-- **Presentación o póster:** coloque el archivo en [`docs/presentacion/`](docs/presentacion/) y enlácelo aquí.
-- **Video de la demostración (opcional):** enlace aquí.
+- **Presentación:** [PowerPoint](docs/presentacion/FaceGuard_AI_Presentacion.pptx) · [PDF](docs/presentacion/FaceGuard_AI_Presentacion.pdf) — orden de la exposición y ponentes en [`docs/presentacion/`](docs/presentacion/).
 
 | Integrante | Contribución personal |
 |---|---|
-| _Nombre 1_ | _p. ej., armado del hardware, conexión GPIO y pruebas F1–F7_ |
-| _Nombre 2_ | _p. ej., calibración del umbral y pruebas de reconocimiento_ |
-| _Nombre 3_ | _p. ej., análisis de costos, seguridad y privacidad, presentación_ |
+| **Andrés Gutiérrez** | Creación y administración del repositorio en GitHub; integración general del software (backend, motor facial y panel web) con apoyo de herramientas de IA; políticas de seguridad, cifrado y privacidad; ejecución y documentación de las pruebas automatizadas; redacción técnica del proyecto |
+| **Keneth Negrón Torres** | Verificación y ensamble de las conexiones del LED y el buzzer en la protoboard y los pines GPIO de la Raspberry Pi; instalación completa del sistema en la Pi (deploy); troubleshooting de hardware y red; pruebas presenciales del prototipo |
+| **Christian Vidal Vargas** | Concepción de la idea principal del proyecto, con el asesoramiento del profesor; montaje y ensamble físico del prototipo; apoyo en el troubleshooting técnico; pruebas presenciales del funcionamiento del sistema |
 
 ---
 
