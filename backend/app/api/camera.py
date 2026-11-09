@@ -17,6 +17,7 @@ from app.services.camera import camera, list_cameras
 from app.services.events import create_event, serialize_event
 from app.services.pipeline import pipeline
 from app.services.settings_store import settings
+from app.services.stream import stream_hub
 
 router = APIRouter(prefix="/api/camera", tags=["camera"])
 
@@ -25,7 +26,7 @@ RESOLUTIONS = [(320, 240), (640, 480), (800, 600), (1280, 720)]
 
 @router.get("/status")
 def status(user: dict = Depends(require("camera.view"))):
-    return {"camera": camera.status(), "engine": pipeline.status(),
+    return {"camera": camera.status(), "engine": pipeline.status(), "stream": stream_hub.status(),
             "devices": list_cameras(), "resolutions": [f"{w}x{h}" for w, h in RESOLUTIONS]}
 
 
@@ -63,23 +64,26 @@ def set_resolution(body: ResolutionIn, request: Request, user: dict = Depends(re
 
 @router.get("/stream")
 async def stream(request: Request, user: dict = Depends(require("camera.view"))):
-    """Video en vivo MJPEG con los recuadros de detección (≈12 fps)."""
+    """Video en vivo MJPEG con los recuadros de detección (≈12 fps).
+
+    Todas las conexiones comparten el mismo JPEG (services/stream.py): abrir el
+    video en más pestañas no multiplica el trabajo de la CPU.
+    """
 
     async def gen():
         last = -1
-        while True:
-            if await request.is_disconnected():
-                break
-            frame, fid, _ = camera.latest()
-            if frame is None or fid == last:
-                await asyncio.sleep(0.08 if frame is not None else 0.5)
-                continue
-            last = fid
-            img = await asyncio.to_thread(pipeline.overlay, frame)
-            ok, jpg = await asyncio.to_thread(cv2.imencode, ".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])
-            if ok:
-                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg.tobytes() + b"\r\n"
-            await asyncio.sleep(1 / 12)
+        stream_hub.acquire()
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                fid, jpg = await asyncio.to_thread(stream_hub.wait_next, last, 1.0)
+                if jpg is None or fid == last:
+                    continue
+                last = fid
+                yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
+        finally:
+            stream_hub.release()
 
     return StreamingResponse(gen(), media_type="multipart/x-mixed-replace; boundary=frame",
                              headers={"Cache-Control": "no-store"})

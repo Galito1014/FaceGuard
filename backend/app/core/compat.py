@@ -83,3 +83,42 @@ def camera_label(index: int) -> str:
 def gpio_supported() -> bool:
     """Los pines GPIO (gpiozero) solo existen en Linux (Raspberry Pi)."""
     return IS_LINUX
+
+
+# Equipos ARM de pocos núcleos (Raspberry Pi): se ajustan valores por defecto
+# para que el análisis no deje sin CPU a la captura ni al video en vivo.
+IS_ARM = platform.machine().lower() in ("aarch64", "arm64", "armv7l", "armv8l")
+IS_LOW_POWER = IS_ARM and IS_LINUX
+
+
+def cv_threads() -> int | None:
+    """Hilos que puede usar OpenCV (redes neuronales, redimensionado…).
+
+    Por defecto OpenCV ocupa todos los núcleos en cada análisis. En la
+    Raspberry Pi eso congela durante unos milisegundos la captura y la
+    codificación del video, y el video en vivo se ve trabado. Allí se reservan
+    dos núcleos para el resto. Se puede forzar con FACEGUARD_CV_THREADS
+    (0 = valor por defecto de OpenCV). None = no cambiar nada.
+    """
+    forced = os.getenv("FACEGUARD_CV_THREADS", "").strip()
+    if forced:
+        try:
+            value = int(forced)
+        except ValueError:
+            return None
+        return value if value > 0 else None
+    if IS_LOW_POWER:
+        return max(1, (os.cpu_count() or 4) - 2)
+    return None
+
+
+def camera_fps() -> int:
+    """Fotogramas por segundo que se piden a la cámara (FACEGUARD_CAMERA_FPS).
+
+    El análisis corre a ~4 por segundo y el video en vivo a ~12: capturar a 30
+    solo gasta CPU decodificando fotogramas que nadie usa.
+    """
+    try:
+        return max(5, min(60, int(os.getenv("FACEGUARD_CAMERA_FPS", "15"))))
+    except ValueError:
+        return 15
