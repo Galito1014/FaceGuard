@@ -205,10 +205,16 @@ class CameraService:
             cap = None
         if cap is None:
             return None
-        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))  # menos carga USB
+        # Con V4L2 el formato se pide después de la resolución: si se pide antes,
+        # algunas cámaras lo descartan al cambiar el tamaño y vuelven a YUYV.
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))  # menos carga USB
+        cap.set(cv2.CAP_PROP_FPS, compat.camera_fps())  # no decodificar fotogramas que nadie usa
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # siempre el fotograma más reciente
+        log.info("Cámara %s abierta (%s): %dx%d a %.0f fps", compat.camera_label(self.index), self.backend,
+                 int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                 cap.get(cv2.CAP_PROP_FPS))
         return cap
 
     def _set_connected(self, value: bool, message: str) -> None:

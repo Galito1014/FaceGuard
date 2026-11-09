@@ -45,6 +45,11 @@ RED = (40, 40, 235)
 AMBER = (0, 170, 255)
 
 
+def _ema(prev: float, value: float, alpha: float = 0.2) -> float:
+    """Promedio móvil exponencial: suaviza los tiempos que se muestran en el panel."""
+    return value if prev == 0 else prev + alpha * (value - prev)
+
+
 class Pipeline:
     def __init__(self) -> None:
         self._thread: threading.Thread | None = None
@@ -65,6 +70,8 @@ class Pipeline:
         self.alerts_generated = 0
         self.embeds_computed = 0
         self.embeds_skipped = 0
+        self.detect_ms = 0.0   # promedio móvil de YuNet por ciclo
+        self.embed_ms = 0.0    # promedio móvil de SFace por rostro
         self.error: str | None = None
 
     # ------------------------------------------------------------- control
@@ -161,13 +168,17 @@ class Pipeline:
             # La lista cambió: se vuelve a analizar a quienes ya estaban en cuadro.
             self._gallery_version = gallery.version
             self._tracker.reset()
+        t_det = time.perf_counter()
         faces, small, _ = engine.detect(frame, cfg["process_width"], cfg["detection_confidence"], cfg["min_face_size"])
+        self.detect_ms = _ema(self.detect_ms, (time.perf_counter() - t_det) * 1000)
         tracks = self._tracker.update([f.box for f in faces], now)
         recheck_s = cfg["recheck_interval_ms"] / 1000
         overlay = []
         for face, track in zip(faces, tracks):
             if self._tracker.needs_embedding(track, now, recheck_s):
+                t_emb = time.perf_counter()
                 face.embedding = engine.embed(small, face)
+                self.embed_ms = _ema(self.embed_ms, (time.perf_counter() - t_emb) * 1000)
                 meta, sim = gallery.best_match(face.embedding, cfg["match_threshold"])
                 self._tracker.record_result(track, meta, sim, cfg["match_threshold"], cfg["confirm_frames"], now)
                 self.embeds_computed += 1
@@ -342,6 +353,8 @@ class Pipeline:
             "alerts_generated": self.alerts_generated,
             "embeds_computed": self.embeds_computed,
             "embeds_skipped": self.embeds_skipped,
+            "detect_ms": round(self.detect_ms, 1),
+            "embed_ms": round(self.embed_ms, 1),
             "ws_clients": hub.count,
         }
 

@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 
 from app.config import config
+from app.core import compat
 
 log = logging.getLogger("faceguard.engine")
 
@@ -58,12 +59,15 @@ class FaceEngine:
                 self.error = "Modelos no encontrados: " + ", ".join(missing) + ". Ejecute scripts/download_models.sh"
                 log.error(self.error)
                 return False
+            threads = compat.cv_threads()
+            if threads:
+                cv2.setNumThreads(threads)
             try:
                 self._detector = cv2.FaceDetectorYN.create(str(det), "", (320, 320), 0.85, 0.3, 50)
                 self._recognizer = cv2.FaceRecognizerSF.create(str(rec), "")
                 self.ready = True
                 self.error = None
-                log.info("Motor facial cargado (OpenCV %s)", cv2.__version__)
+                log.info("Motor facial cargado (OpenCV %s, %d hilos)", cv2.__version__, cv2.getNumThreads())
             except cv2.error as exc:
                 self.error = f"No se pudo cargar el motor: {exc}"
                 log.exception(self.error)

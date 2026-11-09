@@ -5,6 +5,7 @@ import json
 import threading
 from typing import Any, Callable
 
+from app.core import compat
 from app.core.database import get_db, query
 
 DEFAULTS: dict[str, Any] = {
@@ -14,7 +15,10 @@ DEFAULTS: dict[str, Any] = {
     "min_face_size": 60,             # píxeles en la imagen procesada
     "confirm_frames": 3,             # fotogramas consecutivos para confirmar coincidencia
     "process_interval_ms": 250,      # frecuencia de procesamiento (4 fps)
-    "process_width": 480,            # ancho de la imagen que se analiza
+    # Ancho de la imagen que se analiza. En la Raspberry Pi, 320: YuNet tarda
+    # aproximadamente la mitad que con 480 (el tamaño mínimo de rostro se mide
+    # en la imagen original, así que no cambia).
+    "process_width": 320 if compat.IS_LOW_POWER else 480,
     "recheck_interval_ms": 1000,     # revisión periódica de cada rostro (0 = en cada ciclo)
     "dedup_seconds": 15,             # cooldown por persona: sin alertas ni alarmas repetidas
     "detection_log_seconds": 30,     # agrupa detecciones sin coincidencia
